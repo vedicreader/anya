@@ -3,6 +3,9 @@
 nbdev. The notebooks under `nbs/` are the source; `anya/*.py` is generated. Edit the notebook, run
 `nbdev_export`, never edit the `.py`. CI runs `nbdev_export` and fails on a diff.
 
+`.cursor/install.sh` builds `.venv` with every runtime. Activate it or prefix with `uv run`; nbdev
+3.3 names its commands with hyphens, so it is `nbdev-export` and `nbdev-test` there.
+
 ## Prose in notebooks
 
 Keep it short. The prose is there so a reader can see what the code does and what was chosen, not to

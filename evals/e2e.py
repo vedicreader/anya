@@ -241,11 +241,11 @@ def audio_litert(im):
 @case
 def tasks_and_tools(im):
     'One line per job, and the same jobs shaped for a model to call.'
-    ps = classify(PICS, IMAGENET, topk=1)
+    inside = PICS/'sorted'                     # inside the folder being read, which is the usual case
+    ps = classify(PICS, IMAGENET, topk=1, exclude=inside)     # or a previous run's tree counts twice
     s = summarize(ps); say('classify folder', s.n, 'items,', s.failed, 'failed, mean', s.mean_score)
     assert s.n == len(PHOTOS) and s.failed == 0, s
 
-    inside = PICS/'sorted'                     # inside the folder being read, which is the usual case
     r = sort_images(PICS, IMAGENET, dest=inside, min_score=0.3, how='link', dry_run=False)
     say('sorted', r.moved, 'into', len(r.labels), 'folders:', sorted(x[:18] for x in r.labels))
     assert r.moved == len(PHOTOS) and any('tabby' in x for x in r.labels), r
