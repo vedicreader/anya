@@ -189,5 +189,5 @@ def main(argv=None) -> int:
     kw |= {a[2:]: 'true' for a in rest if a.startswith('--') and '=' not in a}
     args = {p.name: _coerce(v, p.annotation) for p, v in zip(ps, pos)}
     args |= {k: _coerce(v, next((p.annotation for p in ps if p.name == k), str)) for k, v in kw.items()}
-    print(json.dumps(f(**args), indent=1, default=str))
-    return 0
+    print(json.dumps(out := f(**args), indent=1, default=str))
+    return 1 if out.get('error') else 0       # the tools never raise, so the exit code is the only signal
