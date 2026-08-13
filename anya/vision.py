@@ -6,7 +6,7 @@ Docs: https://vedicreader.github.io/anya/vision.html.md"""
 
 # %% ../nbs/01_vision.ipynb #ac3b1343
 from __future__ import annotations
-import io, mimetypes
+import io, json, mimetypes
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,8 +17,9 @@ from fastcore.all import L
 __all__ = ['IMG_EXTS', 'AUD_EXTS', 'VID_EXTS', 'MEDIA_EXTS', 'BILINEAR', 'BICUBIC', 'IMAGENET', 'media_kind', 'load_image',
            'img_size', 'load_audio', 'video_frames', 'Prep', 'AudioPrep', 'letterbox', 'center_crop', 'fit',
            'apply_prep', 'apply_audio_prep', 'batch', 'softmax', 'sigmoid', 'is_prob', 'label_at', 'decode_classify',
-           'xywh2xyxy', 'nms', 'scale_boxes', 'decode_yolo', 'decode_ssd', 'decode_detect_auto', 'chan_first',
-           'resize_mask', 'decode_segment', 'mask_image', 'l2norm', 'similarity', 'pool_embed', 'read_labels']
+           'xywh2xyxy', 'nms', 'scale_boxes', 'decode_yolo', 'decode_ssd', 'decode_detect_auto', 'is_ssd', 'chan_first',
+           'resize_mask', 'decode_segment', 'mask_image', 'l2norm', 'similarity', 'pool_embed', 'label_map',
+           'read_labels']
 
 # %% ../nbs/01_vision.ipynb #94499641
 IMG_EXTS = set('.jpg .jpeg .png .bmp .gif .webp .tif .tiff .ppm .pgm'.split())
@@ -159,7 +160,7 @@ def center_crop(a,                  # uint8 HWC image
                ) -> tuple:
     'Scale the short side to `size/pct` then crop `size` out of the centre; returns `(image, meta)`.'
     h, w = a.shape[:2]; th, tw = size
-    sh, sw = (round(th/pct), round(tw/pct)) if pct else (th, tw)
+    sh, sw = (max(th, round(th/pct)), max(tw, round(tw/pct))) if pct else (th, tw)
     r = max(sh/h, sw/w)
     nh, nw = max(sh, int(round(h*r))), max(sw, int(round(w*r)))
     b = _pil_resize(a, (nh, nw), resample)
@@ -293,7 +294,7 @@ def decode_yolo(out,                 # (1, 4+nc, N) or (1, N, 4+nc), optionally 
                 iou:float=0.45,
                 meta:dict=None,      # from `fit`, to put boxes back on the original image
                 max_det:int=300,
-                normalized:bool=False  # output boxes are 0..1 rather than input pixels
+                normalized:bool=None   # boxes are 0..1 rather than input pixels; None reads it off their range
                ) -> list:
     'Decode a YOLO-family output into `{label, score, box, index}` dicts with xyxy boxes.'
     a = np.asarray(out, np.float32)
@@ -301,6 +302,8 @@ def decode_yolo(out,                 # (1, 4+nc, N) or (1, N, 4+nc), optionally 
     if a.shape[0] < a.shape[1]: a = a.T          # (4+nc, N) -> (N, 4+nc)
     nc = a.shape[1] - 4
     box, cls = a[:, :4], a[:, 4:]
+    # the same (1, 84, 8400) signature ships both units: two of three yolo exports tested are normalised
+    if normalized is None: normalized = bool(len(box)) and float(box.max()) <= 2.0
     obj = (len(labels) == nc-1) if labels is not None and len(labels) in (nc, nc-1) else _looks_objectness(cls)
     if obj and nc > 1: cls = cls[:, 1:] * cls[:, :1]      # v5/v7 put an objectness column first
     if cls.max(initial=0.) > 1.0 + 1e-3: cls = sigmoid(cls)
@@ -328,17 +331,14 @@ def decode_ssd(outs,             # the four tensors of a TFLite Detection PostPr
     'Decode boxes/classes/scores/count outputs, whose boxes are normalised `ymin,xmin,ymax,xmax`.'
     boxes, classes, scores = [np.asarray(o, np.float32).reshape(-1, 4 if i == 0 else 1) for i, o in enumerate(outs[:3])]
     n = int(np.asarray(outs[3]).reshape(-1)[0]) if len(outs) > 3 else len(scores)
-    h, w = (meta or {}).get('orig', (1, 1))
-    out = []
-    for i in range(min(n, len(scores))):
-        s = float(scores[i, 0])
-        if s < conf: continue
-        ymin, xmin, ymax, xmax = boxes[i]
-        ci = int(classes[i, 0]) + offset
-        out.append(dict(label=label_at(labels, ci), score=round(s, 6), index=ci,
-                        box=[round(float(xmin*w), 2), round(float(ymin*h), 2),
-                             round(float(xmax*w), 2), round(float(ymax*h), 2)]))
-    return out
+    keep = [i for i in range(min(n, len(scores))) if scores[i, 0] >= conf]
+    b = boxes[keep][:, [1, 0, 3, 2]]                          # ymin,xmin,ymax,xmax -> xyxy
+    # normalised against the padded input, so they go through scale_boxes like any other detector's
+    h, w = (meta or {}).get('size') or (1, 1)
+    box = scale_boxes(b * np.array([w, h, w, h], np.float32), meta) if meta else b
+    return [dict(label=label_at(labels, int(classes[i, 0]) + offset), score=round(float(scores[i, 0]), 6),
+                 index=int(classes[i, 0]) + offset, box=[round(float(v), 2) for v in box[j]])
+            for j, i in enumerate(keep)]
 
 # %% ../nbs/01_vision.ipynb #497f8084
 def decode_detect_auto(outs,            # every output array the model returned, in declared order
@@ -347,10 +347,20 @@ def decode_detect_auto(outs,            # every output array the model returned,
                        iou:float=0.45,
                        meta:dict=None
                       ) -> list:
-    'Decode a detector without being told its family: three or more heads is SSD, one is YOLO.'
+    'Decode a detector without being told its family: a postprocess head is SSD, one tensor is YOLO.'
     outs = list(outs)
-    if len(outs) >= 3: return decode_ssd(outs, labels, conf=conf, meta=meta)
-    return decode_yolo(outs[0], labels, conf=conf, iou=iou, meta=meta)
+    if len(outs) == 1: return decode_yolo(outs[0], labels, conf=conf, iou=iou, meta=meta)
+    if is_ssd(outs): return decode_ssd(outs, labels, conf=conf, meta=meta)
+    raise ValueError(f'{len(outs)} outputs of shape {[list(np.shape(o)) for o in outs[:4]]}: neither a YOLO '
+                     'head nor boxes/classes/scores/count. anya does not decode a raw per-stride head; '
+                     'export the model with its postprocessing included, or pass a decoder.')
+
+def is_ssd(outs) -> bool:
+    'Are these the four tensors of a TFLite Detection PostProcess head: boxes, classes, scores, count?'
+    if len(outs) < 3: return False
+    s = [np.shape(o) for o in outs[:3]]
+    n = s[0][-2] if len(s[0]) >= 2 else 0
+    return s[0][-1] == 4 and n > 0 and all(int(np.prod(x)) == n for x in s[1:])
 
 # %% ../nbs/01_vision.ipynb #c7c8992c
 def chan_first(shape,          # a 3-axis segmentation output shape
@@ -417,16 +427,19 @@ def pool_embed(out) -> np.ndarray:
     return l2norm(a.reshape(-1))
 
 # %% ../nbs/01_vision.ipynb #f1e9e44f
-def read_labels(o) -> L:
-    'Read class names from a labels file, a JSON id/name map, or an iterable.'
-    import json
+def label_map(d:dict) -> L|None:
+    'Class names out of an `id2label`, an inverted `label2id`, or a bare index/name map.'
+    m = d.get('id2label') or {i: n for n, i in (d.get('label2id') or {}).items()} or d
+    try: return L(v for _, v in sorted((int(k), v) for k, v in m.items())) or None
+    except (TypeError, ValueError): return None          # a config.json that names no classes
+
+def read_labels(o) -> L|None:
+    'Read class names from a labels file, a `config.json` or its contents, or an iterable.'
     if o is None: return None
+    if isinstance(o, dict): return label_map(o)
     if isinstance(o, (str, Path)) and Path(o).exists():
         t = Path(o).read_text(encoding='utf-8', errors='replace').strip()
-        if t.startswith('{'):
-            d = json.loads(t)
-            d = d.get('id2label', d)
-            return L(v for _, v in sorted(((int(k), v) for k, v in d.items())))
+        if t.startswith('{'): return label_map(json.loads(t))
         if t.startswith('['): return L(json.loads(t))
         # a plain labels.txt, optionally "0 tench" or "0:tench" per line
         return L(_strip_idx(l) for l in t.split('\n') if l.strip())

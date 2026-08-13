@@ -20,8 +20,8 @@ from .vision import (MEDIA_EXTS, IMG_EXTS, AUD_EXTS, VID_EXTS, AudioPrep, Prep, 
 # %% auto #0
 __all__ = ['runtimes', 'TASKS', 'EMBED_DIMS', 'NORMS', 'CHANNELS', 'is_loaded', 'item_src', 'items', 'Pred', 'Preds',
            'split_runtime', 'infer_runtime', 'resolve_runtime', 'get_runtime', 'dims', 'infer_task', 'chan_axis',
-           'prep_from_spec', 'Model', 'model_file', 'with_hub_defaults', 'load_model', 'loaded_models', 'clear_models',
-           'safe_name', 'arrange']
+           'prep_from_spec', 'Model', 'model_file', 'sidecar_labels', 'with_hub_defaults', 'load_model',
+           'loaded_models', 'clear_models', 'safe_name', 'arrange']
 
 # %% ../nbs/00_core.ipynb #c3c940e5
 def is_loaded(o) -> bool:
@@ -408,16 +408,23 @@ def model_file(model=None,       # a path or a hub repo id
     return Path(resolve_model(str(model), file=file, revision=revision)[1])
 
 # %% ../nbs/00_core.ipynb #a5ad0bf0
+def sidecar_labels(path) -> Path|None:
+    'A labels file beside the weights or up at the repo root, which is how most exports ship class names.'
+    p = Path(path)
+    cs = [p.with_suffix('.txt')] + [d/n for d in list(p.parents)[:3]
+                                    for n in ('labels.txt', 'classes.txt', 'labelmap.txt', 'config.json')]
+    return next((c for c in cs if c.exists()), None)
+
 def with_hub_defaults(path,           # the local weights file
                       labels=None,    # class names, if the caller has them
                       **kw            # anything `prep_from_spec` takes; None means unset
                      ) -> tuple:
     'Returns `(labels, prep keywords)`, filling whatever the caller left unset from the configs beside `path`.'
     kw = {k: v for k, v in kw.items() if v is not None}
-    try: from anya.hub import config_labels, model_config, prep_kwargs
+    try: from anya.hub import model_config, prep_kwargs
     except ImportError: return labels, kw
     c = model_config(path)
-    return (labels if labels is not None else config_labels(c.config), {**prep_kwargs(c.preprocessor), **kw})
+    return (labels if labels is not None else read_labels(c.config), {**prep_kwargs(c.preprocessor), **kw})
 
 # %% ../nbs/00_core.ipynb #88e792fa
 _models = {}

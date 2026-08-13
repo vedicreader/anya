@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 from fastcore.all import AttrDict, L, store_attr
 
-from .core import Model, infer_task, model_file, prep_from_spec, with_hub_defaults
+from .core import Model, infer_task, model_file, prep_from_spec, sidecar_labels, with_hub_defaults
 from .vision import read_labels
 
 # %% auto #0
@@ -67,7 +67,7 @@ class OnnxModel(Model):
         self._sess = sess or mk_session(self.model_path, providers=providers, **kw)
         self._read_spec()
         labels, pk = with_hub_defaults(self.model_path, self.labels, norm=norm, size=size, resize=resize)
-        self.labels = read_labels(labels) or read_labels(_sidecar_labels(self.model_path))
+        self.labels = read_labels(labels) or read_labels(sidecar_labels(self.model_path))
         self._task = task or infer_task([o.shape for o in self.outputs], self.labels,
                                         [o.name for o in self.outputs])
         self._prep = prep or prep_from_spec(self.inp.shape, self.inp.dtype, task=self._task, **pk)
@@ -95,11 +95,3 @@ class OnnxModel(Model):
     def _infer(self, x) -> list:
         if self._sess is None: raise RuntimeError('this model is closed')
         return self._sess.run(None, {self.inp.name: x.astype(self.inp.dtype, copy=False)})
-
-# %% ../nbs/02_onnx.ipynb #0ae07a87
-def _sidecar_labels(path):
-    'A labels file sitting next to the weights, which is how most exports ship class names.'
-    p = Path(path)
-    for c in (p.with_suffix('.txt'), p.parent/'labels.txt', p.parent/'classes.txt', p.parent/'config.json'):
-        if c.exists(): return c
-    return None

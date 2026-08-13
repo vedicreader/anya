@@ -16,8 +16,8 @@ from .core import infer_runtime, runtimes
 
 # %% auto #0
 __all__ = ['WEIGHT_EXTS', 'SIDECARS', 'PIPELINES', 'weight_files', 'file_runtime', 'dflt_prefer', 'score_file', 'pick_file',
-           'prep_kwargs', 'config_labels', 'repo_files', 'fetch', 'fetch_sidecars', 'resolve_model', 'model_config',
-           'find_models', 'web_models', 'registry_path', 'aliases', 'alias', 'resolve_alias']
+           'prep_kwargs', 'repo_files', 'fetch', 'fetch_sidecars', 'resolve_model', 'model_config', 'find_models',
+           'web_models', 'registry_path', 'aliases', 'alias', 'resolve_alias']
 
 # %% ../nbs/05_hub.ipynb #5468ec5e
 WEIGHT_EXTS = {'.onnx': 'onnx', '.ort': 'onnx', '.tflite': 'litert', '.lite': 'litert',
@@ -71,21 +71,15 @@ def prep_kwargs(cfg:dict) -> dict:
     if not cfg: return {}
     out, size, crop = {}, _hw(cfg.get('size')), _hw(cfg.get('crop_size'))
     if cfg.get('do_center_crop'): out['resize'] = 'center_crop'
-    # size 256 with crop_size 224 means resize the short side to 256, then crop 224 out of the middle
-    if crop and size and crop != size: out['crop_pct'] = round(crop[0]/size[0], 4)
+    # size 256 with crop_size 224 means resize the short side to 256, then crop 224 out of the middle.
+    # SpotLab/YOLOv8Detection asks for a 640 crop out of a 256 short side, which is not a crop.
+    if crop and size and crop[0] < size[0]: out['crop_pct'] = round(crop[0]/size[0], 4)
     if (sz := (crop if cfg.get('do_center_crop') else None) or size or crop): out['size'] = sz
     m, s = cfg.get('image_mean'), cfg.get('image_std')
     if m and s: out['norm'] = (tuple(float(x) for x in m), tuple(float(x) for x in s))
     # bicubic against bilinear moved top-1 on one of five photos, so the filter is worth carrying
     if isinstance(cfg.get('resample'), int): out['resample'] = cfg['resample']
     return out
-
-def config_labels(cfg:dict) -> L|None:
-    'Class names from a `config.json`, in index order, out of `id2label` or an inverted `label2id`.'
-    cfg = cfg or {}
-    d = cfg.get('id2label') or {i: n for n, i in (cfg.get('label2id') or {}).items()}
-    if not d: return None
-    return L(v for _, v in sorted((int(k), v) for k, v in d.items()))
 
 # %% ../nbs/05_hub.ipynb #d73a74f2
 SIDECARS = ('config.json', 'preprocessor_config.json', 'labels.txt', 'classes.txt', 'labelmap.txt')

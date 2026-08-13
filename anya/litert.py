@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 from fastcore.all import AttrDict, L
 
-from .core import Model, infer_task, model_file, prep_from_spec, with_hub_defaults
+from .core import Model, infer_task, model_file, prep_from_spec, sidecar_labels, with_hub_defaults
 from .vision import read_labels
 
 # %% auto #0
@@ -74,7 +74,8 @@ class LitertModel(Model):
         self._read_spec()
         labels, pk = with_hub_defaults(self.model_path, self.labels, size=size, resize=resize,
                                        norm=None if norm == 'auto' else norm)
-        self.labels = read_labels(labels) or tflite_labels(self.model_path)
+        self.labels = (read_labels(labels) or tflite_labels(self.model_path)
+                       or read_labels(sidecar_labels(self.model_path)))
         self._task = task or infer_task([o.shape for o in self.outputs], self.labels,
                                         [o.name for o in self.outputs])
         pk.setdefault('norm', norm_from_quant(self.inp.quant, self.inp.dtype) or '01')
