@@ -7,7 +7,8 @@ what a real export declares. This downloads eight repos and asserts on what come
     python evals/e2e.py detect audio    # only the cases whose name contains one of these
 
 Needs the network, and `pip install 'anya[onnx,litert,hub,audio]'`. About 190MB of weights, cached
-by huggingface_hub after the first run.
+by huggingface_hub after the first run. No revision is pinned: the question is whether anya works
+against what these repos ship today, so an upstream change ought to fail here.
 """
 import sys, urllib.request
 from collections import Counter
