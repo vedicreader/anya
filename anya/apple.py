@@ -11,8 +11,8 @@ from pathlib import Path
 import numpy as np
 from fastcore.all import AttrDict, L
 
-from .core import Model, Pred, infer_task, model_file, prep_from_spec, with_hub_defaults
-from .vision import Prep, decode_classify, read_labels
+from .core import Model, Pred, model_file
+from .vision import BILINEAR, Prep, decode_classify
 
 # %% auto #0
 __all__ = ['ct_spec', 'decode_class_dict', 'CoreMLModel']
@@ -71,24 +71,27 @@ class CoreMLModel(Model):
         model = self._setup(model, task=task, labels=labels, topk=topk, conf=conf, iou=iou)
         self.model_path = str(model_file(model, model_path, file=file, revision=revision))
         self._sess = mlmodel or self._mk_model(compute_units, **kw)
+        self._read_spec()
+        self._finish(task, prep, norm=norm, size=size, resize=resize, crop_pct=crop_pct, resample=resample)
+        self._max_bs = 1
+
+    def _read_spec(self):
+        'Input and output features as plain rows, plus which kind of Core ML model this is.'
         s = ct_spec(self._sess)
         self.inputs, self.outputs, self.kind = s.inputs, s.outputs, s.kind
         if len(self.inputs) > 1: raise ValueError(
             f'{Path(self.model_path).name} takes {len(self.inputs)} inputs; anya drives single-input models.')
         self.inp = self.inputs[0]
-        labels, pk = with_hub_defaults(self.model_path, self.labels, norm=norm, size=size, resize=resize,
-                                       crop_pct=crop_pct, resample=resample)
-        self.labels = read_labels(labels)
-        self._task = task or ('classify' if self.kind == 'neuralNetworkClassifier'
-                              else infer_task([o.shape for o in self.outputs], self.labels,
-                                              [o.name for o in self.outputs]))
-        # an image input is resized and handed over as pixels: Core ML owns the normalisation
-        self._prep = prep or (Prep(size=tuple(self.inp.shape[1:3]), layout='nhwc', dtype='uint8',
-                                   resize=pk.get('resize') or ('letterbox' if self._task == 'detect' else 'stretch'),
-                                   crop_pct=pk.get('crop_pct'))
-                              if self.inp.kind == 'image' else
-                              prep_from_spec(self.inp.shape, self.inp.dtype, task=self._task, **pk))
-        self._max_bs = 1
+
+    def _guess_task(self) -> str:
+        return 'classify' if self.kind == 'neuralNetworkClassifier' else super()._guess_task()
+
+    def _mk_prep(self, **pk):
+        'An image input is resized and handed over as pixels: Core ML owns the normalisation.'
+        if self.inp.kind != 'image': return super()._mk_prep(**pk)
+        return Prep(size=tuple(self.inp.shape[1:3]), layout='nhwc', dtype='uint8',
+                    resize=pk.get('resize') or ('letterbox' if self.task == 'detect' else 'stretch'),
+                    crop_pct=pk.get('crop_pct'), resample=pk.get('resample') or BILINEAR)
 
     def _mk_model(self, compute_units='ALL', **kw):
         try: import coremltools as ct

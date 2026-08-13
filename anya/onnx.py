@@ -11,8 +11,7 @@ from pathlib import Path
 import numpy as np
 from fastcore.all import AttrDict, L, store_attr
 
-from .core import Model, infer_task, model_file, prep_from_spec, sidecar_labels, with_hub_defaults
-from .vision import read_labels
+from .core import Model, model_file
 
 # %% auto #0
 __all__ = ['PROVIDER_ORDER', 'best_providers', 'mk_session', 'OnnxModel']
@@ -68,12 +67,7 @@ class OnnxModel(Model):
         self.model_path = str(model_file(model, model_path, file=file, revision=revision))
         self._sess = sess or mk_session(self.model_path, providers=providers, **kw)
         self._read_spec()
-        labels, pk = with_hub_defaults(self.model_path, self.labels, norm=norm, size=size, resize=resize,
-                                       crop_pct=crop_pct, resample=resample)
-        self.labels = read_labels(labels) or read_labels(sidecar_labels(self.model_path))
-        self._task = task or infer_task([o.shape for o in self.outputs], self.labels,
-                                        [o.name for o in self.outputs])
-        self._prep = prep or prep_from_spec(self.inp.shape, self.inp.dtype, task=self._task, **pk)
+        self._finish(task, prep, norm=norm, size=size, resize=resize, crop_pct=crop_pct, resample=resample)
         self._max_bs = self._batch_limit(max_bs)
 
     def _read_spec(self):

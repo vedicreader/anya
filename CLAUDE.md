@@ -36,7 +36,9 @@ Every runtime is an optional extra. `anya/__init__.py` imports none of them, `co
 imports one lazily, and an ImportError must name the extra that fixes it (`pip install 'anya[onnx]'`).
 
 A runtime subclass supplies three things and inherits the rest: `_read_spec` (what the graph
-declares), `_infer` (run one batch), and the `Prep` it built from the signature. Preprocessing,
+declares), `_infer` (run one batch), and `_mk_prep` where the signature alone is not enough.
+`Model._finish` resolves the labels, the task and the `Prep` for all of them; `_own_labels` and
+`_guess_task` are the other two hooks, and only Core ML and LiteRT need any of them. Preprocessing,
 batching, decoding, error handling and file arrangement live in `core` and `vision`, once.
 
 Nothing in `anya/vision.py` may import a runtime. It is numpy and Pillow so that the decoders can be

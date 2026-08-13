@@ -286,13 +286,36 @@ class Model:
 
     def _setup(self, model=None, model_path=None, task=None, labels=None, prep=None,
                topk:int=5, conf:float=0.25, iou:float=0.45, meta:dict=None):
-        'Shared init tail: store the knobs every task shares and normalise the labels.'
+        'Init head: store the knobs every task shares, before there is a graph to read.'
         _, model = split_runtime(model)
         store_attr('model,model_path,topk,conf,iou', self)
         self.labels = read_labels(labels)
         self.meta = dict(meta or {})
         self._task, self._prep = task, prep
         return model
+
+    def _finish(self,
+                task:str=None,   # the caller's override, if any
+                prep=None,       # a fully built Prep, overriding everything else
+                **pk             # what the caller said about preprocessing; None means unset
+               ):
+        'Init tail: the labels, the task and the `Prep`, once `_read_spec` has run.'
+        labels, pk = with_hub_defaults(self.model_path, self.labels, **pk)
+        self.labels = read_labels(labels) or read_labels(self._own_labels())
+        self._task = task or self._guess_task()
+        self._prep = prep or self._mk_prep(**pk)
+
+    def _own_labels(self):
+        'Class names this runtime can find for itself; by default a labels file beside the weights.'
+        return sidecar_labels(self.model_path)
+
+    def _guess_task(self) -> str:
+        'The task this model\'s output signature implies.'
+        return infer_task(self.outputs.attrgot('shape'), self.labels, self.outputs.attrgot('name'))
+
+    def _mk_prep(self, **pk):
+        'The `Prep` this model\'s input signature calls for.'
+        return prep_from_spec(self.inp.shape, self.inp.dtype, task=self._task, **pk)
 
     @property
     def runtime(self) -> str: return self._runtime
