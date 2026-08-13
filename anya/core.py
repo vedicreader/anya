@@ -20,9 +20,10 @@ from .vision import (MEDIA_EXTS, IMG_EXTS, AUD_EXTS, VID_EXTS, AudioPrep, Prep, 
 # %% auto #0
 __all__ = ['runtimes', 'TASKS', 'EMBED_DIMS', 'NORMS', 'CHANNELS', 'is_loaded', 'item_src', 'items', 'Pred', 'Preds',
            'split_runtime', 'infer_runtime', 'resolve_runtime', 'get_runtime', 'dims', 'infer_task', 'prep_from_spec',
-           'Model', 'model_file', 'load_model', 'loaded_models', 'clear_models', 'safe_name', 'arrange']
+           'Model', 'model_file', 'with_hub_defaults', 'load_model', 'loaded_models', 'clear_models', 'safe_name',
+           'arrange']
 
-# %% ../nbs/00_core.ipynb #790aaad1
+# %% ../nbs/00_core.ipynb #c3c940e5
 def is_loaded(o) -> bool:
     'Is `o` already pixels or bytes rather than something to read off disk?'
     return isinstance(o, (np.ndarray, bytes, bytearray)) or (hasattr(o, 'mode') and hasattr(o, 'size'))
@@ -34,7 +35,8 @@ def item_src(o) -> str|None:
 def items(o,                      # a path, a folder, a glob, an iterable of any of those, or pixels
           types:str='image',      # 'image', 'audio', 'video', 'any', or an iterable of suffixes
           recurse:bool=True,      # walk subdirectories of a folder
-          sort:bool=True          # deterministic order, so a rerun matches the last run
+          sort:bool=True,         # deterministic order, so a rerun matches the last run
+          exclude=None            # paths to skip: a sorted output folder under the folder being read
          ) -> L:
     'Expand `o` into a flat `L` of things a model can be run on.'
     exts = _exts(types)
@@ -44,12 +46,17 @@ def items(o,                      # a path, a folder, a glob, an iterable of any
         p = Path(o).expanduser()
         if p.is_dir():
             fs = L(p.rglob('*') if recurse else p.glob('*')).filter(lambda f: f.is_file() and f.suffix.lower() in exts)
-            return fs.sorted() if sort else fs
-        if any(c in str(o) for c in '*?['):
-            fs = L(Path().glob(str(o)))
-            return fs.sorted() if sort else fs
-        return L([p])
-    return L(o).map(lambda x: items(x, types=types, recurse=recurse, sort=sort)).concat()
+        elif any(c in str(o) for c in '*?['): fs = L(Path().glob(str(o)))
+        else: fs = L([p])
+        fs = _drop_excluded(fs, exclude)
+        return fs.sorted() if sort else fs
+    return L(o).map(lambda x: items(x, types=types, recurse=recurse, sort=sort, exclude=exclude)).concat()
+
+def _drop_excluded(fs, exclude) -> L:
+    'Files under any of `exclude` are not items: this is what stops a second run reading its own output.'
+    if not exclude: return fs
+    ex = L(exclude if isinstance(exclude, (list, tuple, L)) else [exclude]).map(lambda p: str(Path(p).expanduser().absolute()))
+    return fs.filter(lambda f: not any(str(Path(f).absolute()).startswith(e + os.sep) for e in ex))
 
 def _exts(types) -> set:
     if types in (None, 'any', 'all'): return MEDIA_EXTS
@@ -241,7 +248,7 @@ def prep_from_spec(shape,                 # the input tensor shape the model dec
     return Prep(size=size, layout=lay, dtype=dtype, scale=scale, mean=mean, std=std,
                 resize=resize or ('letterbox' if task == 'detect' else 'stretch'), quant=quant, bgr=bgr)
 
-# %% ../nbs/00_core.ipynb #35e349af
+# %% ../nbs/00_core.ipynb #f7d2571c
 class Model:
     "Runtime-agnostic model: `Model(name)` dispatches to the onnx/litert/coreml subclass."
     _runtime = None
@@ -314,10 +321,11 @@ class Model:
                     bs:int=None,                # batch size; the model's own limit caps it
                     on_error:str='skip',        # 'skip' records the error and carries on, 'raise' stops
                     types:str=None,             # which files a folder contributes; defaults to the model's modality
+                    exclude=None,               # paths to skip, such as the folder the results are being written to
                     **kw
                    ) -> Preds:
         'Run the model over a folder, a list or a glob.'
-        xs = items(o, types=types or self.modality)
+        xs = items(o, types=types or self.modality, exclude=exclude)
         bs = min(bs or self.max_bs, self.max_bs)
         out = Preds()
         for i in range(0, len(xs), bs):
@@ -386,11 +394,28 @@ def model_file(model=None,       # a path or a hub repo id
     from anya.hub import resolve_model
     return Path(resolve_model(str(model), file=file, revision=revision)[1])
 
-# %% ../nbs/00_core.ipynb #d1b3e904
+# %% ../nbs/00_core.ipynb #a5ad0bf0
+def with_hub_defaults(path,          # the local weights file
+                      labels=None, norm=None, size=None, resize=None
+                     ) -> tuple:
+    'Fill whatever the caller left unset from the config files cached beside `path`.'
+    try: from anya.hub import config_labels, model_config, prep_kwargs
+    except ImportError: return labels, norm, size, resize
+    c = model_config(path)
+    pk = prep_kwargs(c.preprocessor)
+    return (labels if labels is not None else config_labels(c.config),
+            norm if norm is not None else pk.get('norm'),
+            size or pk.get('size'), resize or pk.get('resize'))
+
+# %% ../nbs/00_core.ipynb #88e792fa
 _models = {}
 
 def load_model(model=None, **kw) -> Model:
-    'A cached `Model`: the same arguments return the same loaded object.'
+    'A cached `Model`, expanding an alias from the registry; the same arguments return the same object.'
+    try:
+        from anya.hub import resolve_alias
+        if (a := resolve_alias(model)): model, kw = a['model'], {**{x: y for x, y in a.items() if x != 'model'}, **kw}
+    except ImportError: pass
     k = (str(model), tuple(sorted((a, str(b)) for a, b in kw.items())))
     if k not in _models: _models[k] = Model(model, **kw)
     return _models[k]
@@ -406,7 +431,7 @@ def clear_models():
         except Exception: pass
     _models.clear()
 
-# %% ../nbs/00_core.ipynb #da010004
+# %% ../nbs/00_core.ipynb #ca032161
 def safe_name(s:str, mx:int=60) -> str:
     'A label as a directory name: no separators, no surprises.'
     out = ''.join(c if (c.isalnum() or c in ' -_') else '_' for c in str(s)).strip().replace(' ', '_')
