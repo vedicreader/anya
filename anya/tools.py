@@ -6,7 +6,7 @@ Docs: https://vedicreader.github.io/anya/tools.html.md"""
 
 # %% ../nbs/07_tools.ipynb #bdadac5a
 from __future__ import annotations
-import json, sys
+import inspect, json, sys
 from pathlib import Path
 
 import numpy as np
@@ -152,14 +152,15 @@ def tool_names() -> list:
 # %% ../nbs/07_tools.ipynb #57ff7733
 def _coerce(v:str, ann):
     'Command line strings into the types a tool declares.'
-    if ann is bool: return str(v).lower() not in ('0', 'false', 'no', '')
-    if ann is int: return int(v)
-    if ann is float: return float(v)
+    # `from __future__ import annotations` hands every annotation over as a string, so match the name
+    t = getattr(ann, '__name__', str(ann))
+    if t == 'bool': return str(v).lower() not in ('0', 'false', 'no', '')
+    if t == 'int': return int(v)
+    if t == 'float': return float(v)
     return v
 
 def main(argv=None) -> int:
     'Entry point for the `anya` command: `anya <tool> [positional…] [--flag=value…]`.'
-    import inspect
     argv = list(sys.argv[1:] if argv is None else argv)
     by_name = {f.__name__: f for f in TOOLS}
     if not argv or argv[0] in ('-h', '--help', 'help'):

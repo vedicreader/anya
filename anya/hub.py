@@ -154,13 +154,18 @@ def find_models(query:str,          # what the model should do, in words
                 n:int=10,
                 token=None
                ) -> L:
-    'Search the Hub for models anya can run, most downloaded first.'
-    kw = dict(search=query, sort='downloads', limit=max(n*3, 30))
+    'Search the Hub for models anya can run: the whole phrase first, then each word, most downloaded first.'
+    kw = dict(sort='downloads', limit=max(n*3, 30))
     if task: kw['pipeline_tag'] = PIPELINES.get(task, task)
     if runtime: kw['filter'] = {'onnx': 'onnx', 'litert': 'tflite', 'coreml': 'coreml'}[runtime]
-    ms = L(_api(token).list_models(**kw))
-    return ms.map(lambda m: AttrDict(id=m.id, downloads=getattr(m, 'downloads', 0),
-                                     task=getattr(m, 'pipeline_tag', None), likes=getattr(m, 'likes', 0)))[:n]
+    # the Hub matches `search` against the repo id, so 'bird classifier' finds none of what 'bird' finds
+    found = {}
+    for q in dict.fromkeys([query, *query.split()]):
+        for m in _api(token).list_models(search=q, **kw):
+            found.setdefault(m.id, AttrDict(id=m.id, downloads=getattr(m, 'downloads', 0),
+                                            task=getattr(m, 'pipeline_tag', None), likes=getattr(m, 'likes', 0)))
+        if len(found) >= n: break
+    return L(found.values())[:n]        # in search order: 'bird' outranks the more downloaded 'classifier'
 
 def web_models(query:str, n:int=5) -> L:
     'Ask the open web for HuggingFace models, for when the Hub API is not reachable.'
