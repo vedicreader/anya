@@ -440,6 +440,8 @@ def read_labels(o) -> L|None:
     if o is None: return None
     if isinstance(o, dict): return label_map(o)
     if isinstance(o, (str, Path)) and Path(o).exists():
+        if (sfx := Path(o).suffix.lower()) not in ('.txt', '.csv', '.json'): raise ValueError(
+            f'{Path(o).name} is a {sfx} file, not labels: pass a .txt, .csv, .json, or a list of names.')
         t = Path(o).read_text(encoding='utf-8', errors='replace').strip()
         if t.startswith('{'): return label_map(json.loads(t))
         if t.startswith('['): return L(json.loads(t))

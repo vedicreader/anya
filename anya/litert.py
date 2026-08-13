@@ -62,6 +62,8 @@ class LitertModel(Model):
                  norm=None,              # None reads the pixel range off the quantisation; else a NORMS name
                  size:tuple=None,
                  resize:str=None,
+                 crop_pct:float=None,    # fraction of the short side 'center_crop' keeps
+                 resample:int=None,      # PIL resample filter, 2 bilinear or 3 bicubic
                  prep=None,
                  topk:int=5, conf:float=0.25, iou:float=0.45,
                  threads:int=None,       # interpreter threads; LiteRT's default is all cores
@@ -73,6 +75,7 @@ class LitertModel(Model):
         self._sess = interp or self._mk_interp(threads, **kw)
         self._read_spec()
         labels, pk = with_hub_defaults(self.model_path, self.labels, size=size, resize=resize,
+                                       crop_pct=crop_pct, resample=resample,
                                        norm=None if norm == 'auto' else norm)
         self.labels = (read_labels(labels) or tflite_labels(self.model_path)
                        or read_labels(sidecar_labels(self.model_path)))

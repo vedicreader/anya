@@ -19,8 +19,8 @@ from .vision import (MEDIA_EXTS, IMG_EXTS, AUD_EXTS, VID_EXTS, AudioPrep, Prep, 
 
 # %% auto #0
 __all__ = ['runtimes', 'TASKS', 'EMBED_DIMS', 'NORMS', 'CHANNELS', 'is_loaded', 'item_src', 'items', 'Pred', 'Preds',
-           'split_runtime', 'infer_runtime', 'resolve_runtime', 'get_runtime', 'dims', 'infer_task', 'chan_axis',
-           'prep_from_spec', 'Model', 'model_file', 'sidecar_labels', 'with_hub_defaults', 'load_model',
+           'split_runtime', 'infer_runtime', 'resolve_runtime', 'get_runtime', 'dims', 'nobatch', 'infer_task',
+           'chan_axis', 'prep_from_spec', 'Model', 'model_file', 'sidecar_labels', 'with_hub_defaults', 'load_model',
            'loaded_models', 'clear_models', 'safe_name', 'arrange']
 
 # %% ../nbs/00_core.ipynb #c3c940e5
@@ -191,6 +191,11 @@ def dims(shape) -> list:
     'The concrete dimensions of a declared shape; symbolic axes (a named batch) drop out.'
     return [d for d in (d if isinstance(d, int) and d > 0 else None for d in shape) if d]
 
+def nobatch(shape) -> list:
+    'A declared shape without its batch axis, which is a 1 or a name.'
+    s = list(shape)
+    return s[1:] if len(s) > 1 and (s[0] == 1 or not isinstance(s[0], int)) else s
+
 def infer_task(shapes,          # output shapes the model declares, in order
                labels=None,     # class names, when the model or the caller supplied them
                names=None       # output tensor names, which often say it outright
@@ -202,10 +207,12 @@ def infer_task(shapes,          # output shapes the model declares, in order
                  ('embed', 'embed'), ('feature', 'embed'), ('hidden', 'embed')):
         if k in ns: return t
     shapes = L(shapes)
-    # boxes/classes/scores/count starts with a 4-column box tensor; yamnet's three heads start with 521
-    if len(shapes) >= 3: return 'detect' if list(shapes[0])[-1] == 4 else 'classify'
-    s = list(shapes[0]) if len(shapes) else []
-    if len(s) > 1 and (s[0] == 1 or not isinstance(s[0], int)): s = s[1:]   # drop the batch axis
+    s = nobatch(shapes[0]) if len(shapes) else []
+    if len(shapes) >= 3:
+        if list(shapes[0])[-1] == 4: return 'detect'        # boxes / classes / scores / count
+        if len(s) <= 1: return 'classify'                   # yamnet: scores, embeddings, spectrogram
+        raise ValueError(f'{len(shapes)} outputs of shape {[list(x) for x in shapes[:4]]}: anya cannot tell '
+                         'what this model does. Pass task= to say, or a prep= and read the outputs yourself.')
     if len(s) >= 3: return 'segment'                       # a class per pixel, C,H,W or H,W,C
     d = dims(s)
     if len(d) == 2:

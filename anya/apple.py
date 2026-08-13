@@ -61,6 +61,8 @@ class CoreMLModel(Model):
                  norm=None,
                  size:tuple=None,
                  resize:str=None,
+                 crop_pct:float=None,    # fraction of the short side 'center_crop' keeps
+                 resample:int=None,      # PIL resample filter, 2 bilinear or 3 bicubic
                  prep=None,
                  topk:int=5, conf:float=0.25, iou:float=0.45,
                  compute_units:str='ALL',  # 'ALL', 'CPU_ONLY', 'CPU_AND_GPU', 'CPU_AND_NE'
@@ -74,7 +76,8 @@ class CoreMLModel(Model):
         if len(self.inputs) > 1: raise ValueError(
             f'{Path(self.model_path).name} takes {len(self.inputs)} inputs; anya drives single-input models.')
         self.inp = self.inputs[0]
-        labels, pk = with_hub_defaults(self.model_path, self.labels, norm=norm, size=size, resize=resize)
+        labels, pk = with_hub_defaults(self.model_path, self.labels, norm=norm, size=size, resize=resize,
+                                       crop_pct=crop_pct, resample=resample)
         self.labels = read_labels(labels)
         self._task = task or ('classify' if self.kind == 'neuralNetworkClassifier'
                               else infer_task([o.shape for o in self.outputs], self.labels,

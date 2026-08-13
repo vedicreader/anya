@@ -56,6 +56,8 @@ class OnnxModel(Model):
                  norm=None,              # a NORMS name or an explicit (mean, std); the repo's config by default
                  size:tuple=None,        # the input size, for a graph with symbolic spatial axes
                  resize:str=None,        # 'stretch', 'letterbox', 'center_crop'
+                 crop_pct:float=None,    # fraction of the short side 'center_crop' keeps
+                 resample:int=None,      # PIL resample filter, 2 bilinear or 3 bicubic
                  prep=None,              # a fully built Prep, overriding everything above
                  topk:int=5, conf:float=0.25, iou:float=0.45,
                  providers=None,         # execution providers, fastest-available by default
@@ -66,7 +68,8 @@ class OnnxModel(Model):
         self.model_path = str(model_file(model, model_path, file=file, revision=revision))
         self._sess = sess or mk_session(self.model_path, providers=providers, **kw)
         self._read_spec()
-        labels, pk = with_hub_defaults(self.model_path, self.labels, norm=norm, size=size, resize=resize)
+        labels, pk = with_hub_defaults(self.model_path, self.labels, norm=norm, size=size, resize=resize,
+                                       crop_pct=crop_pct, resample=resample)
         self.labels = read_labels(labels) or read_labels(sidecar_labels(self.model_path))
         self._task = task or infer_task([o.shape for o in self.outputs], self.labels,
                                         [o.name for o in self.outputs])
