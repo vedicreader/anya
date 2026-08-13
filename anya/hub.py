@@ -15,9 +15,9 @@ from fastcore.all import AttrDict, L
 from .core import infer_runtime, runtimes
 
 # %% auto #0
-__all__ = ['WEIGHT_EXTS', 'SIDECARS', 'PIPELINES', 'weight_files', 'file_runtime', 'dflt_prefer', 'score_file', 'pick_file',
-           'prep_kwargs', 'repo_files', 'fetch', 'fetch_sidecars', 'resolve_model', 'model_config', 'find_models',
-           'web_models', 'registry_path', 'aliases', 'alias', 'resolve_alias']
+__all__ = ['WEIGHT_EXTS', 'SIDECARS', 'LABEL_FILE', 'PIPELINES', 'weight_files', 'file_runtime', 'dflt_prefer', 'score_file',
+           'pick_file', 'prep_kwargs', 'repo_files', 'fetch', 'fetch_sidecars', 'resolve_model', 'model_config',
+           'find_models', 'web_models', 'registry_path', 'aliases', 'alias', 'resolve_alias']
 
 # %% ../nbs/05_hub.ipynb #5468ec5e
 WEIGHT_EXTS = {'.onnx': 'onnx', '.ort': 'onnx', '.tflite': 'litert', '.lite': 'litert',
@@ -82,7 +82,8 @@ def prep_kwargs(cfg:dict) -> dict:
     return out
 
 # %% ../nbs/05_hub.ipynb #d73a74f2
-SIDECARS = ('config.json', 'preprocessor_config.json', 'labels.txt', 'classes.txt', 'labelmap.txt')
+SIDECARS = ('config.json', 'preprocessor_config.json')
+LABEL_FILE = r'(label|class)[\w.-]*\.(txt|csv)$'      # labels.txt, labels_yamnet.txt, audioset_labels.txt
 
 def _api(token=None):
     try: from huggingface_hub import HfApi
@@ -103,13 +104,13 @@ def fetch(repo_id:str,          # a Hub repo id
     from huggingface_hub import hf_hub_download
     return Path(hf_hub_download(repo_id, filename, revision=revision, token=token))
 
-def fetch_sidecars(repo_id:str, files, dest:Path, revision:str=None, token=None) -> dict:
-    'Download the config and label files that sit beside the weights, ignoring any that 404.'
+def fetch_sidecars(repo_id:str, files, revision:str=None, token=None) -> dict:
+    'Download the configs and label files that sit beside the weights, ignoring any that 404.'
     out = {}
-    for n in SIDECARS:
-        hit = next((f for f in files if str(f).rsplit('/', 1)[-1] == n), None)
-        if not hit: continue
-        try: out[n] = fetch(repo_id, hit, revision=revision, token=token)
+    for f in files:
+        n = str(f).rsplit('/', 1)[-1]
+        if n in out or not (n in SIDECARS or re.search(LABEL_FILE, n, re.I)): continue
+        try: out[n] = fetch(repo_id, f, revision=revision, token=token)
         except Exception: pass          # a listed file can still be gated or moved
     return out
 
@@ -130,7 +131,7 @@ def resolve_model(repo_id:str,        # a Hub repo id, or a local path
         f'{repo_id} ships no file anya can run (looked for {", ".join(WEIGHT_EXTS)}). '
         f'It has: {", ".join(map(str, files[:12]))}')
     path = fetch(repo_id, pick, revision=revision, token=token)
-    fetch_sidecars(repo_id, files, path.parent, revision=revision, token=token)
+    fetch_sidecars(repo_id, files, revision=revision, token=token)
     return (file_runtime(pick), str(path))
 
 def model_config(path) -> AttrDict:

@@ -202,7 +202,8 @@ def infer_task(shapes,          # output shapes the model declares, in order
                  ('embed', 'embed'), ('feature', 'embed'), ('hidden', 'embed')):
         if k in ns: return t
     shapes = L(shapes)
-    if len(shapes) >= 3: return 'detect'                   # boxes / classes / scores / count
+    # boxes/classes/scores/count starts with a 4-column box tensor; yamnet's three heads start with 521
+    if len(shapes) >= 3: return 'detect' if list(shapes[0])[-1] == 4 else 'classify'
     s = list(shapes[0]) if len(shapes) else []
     if len(s) > 1 and (s[0] == 1 or not isinstance(s[0], int)): s = s[1:]   # drop the batch axis
     if len(s) >= 3: return 'segment'                       # a class per pixel, C,H,W or H,W,C
@@ -411,9 +412,12 @@ def model_file(model=None,       # a path or a hub repo id
 def sidecar_labels(path) -> Path|None:
     'A labels file beside the weights or up at the repo root, which is how most exports ship class names.'
     p = Path(path)
-    cs = [p.with_suffix('.txt')] + [d/n for d in list(p.parents)[:3]
-                                    for n in ('labels.txt', 'classes.txt', 'labelmap.txt', 'config.json')]
-    return next((c for c in cs if c.exists()), None)
+    if (c := p.with_suffix('.txt')).exists(): return c
+    named = lambda f: any(w in f.name.lower() for w in ('label', 'class'))    # labels_yamnet.txt, coco_labels.txt
+    for d in list(p.parents)[:3]:            # the hub cache mirrors the repo, so a root file is a level up
+        if (hits := L(d.glob('*.txt')).filter(named).sorted()): return hits[0]
+        if (c := d/'config.json').exists(): return c
+    return None
 
 def with_hub_defaults(path,           # the local weights file
                       labels=None,    # class names, if the caller has them

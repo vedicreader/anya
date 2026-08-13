@@ -227,9 +227,10 @@ def softmax(x, axis=-1):
 def sigmoid(x): return 1/(1+np.exp(-np.asarray(x, np.float32)))
 
 def is_prob(x) -> bool:
-    'Does `x` already look like a probability vector (0..1 and summing to 1)?'
+    'Is `x` in 0..1 already, so that a softmax on top of it would be wrong?'
+    # yamnet's 521 sigmoid scores sum to 4, not 1: requiring a sum of 1 softmaxed them a second time
     x = np.asarray(x, np.float32)
-    return bool(x.min() >= -1e-4 and x.max() <= 1+1e-4 and abs(float(x.sum())-1) < 1e-2)
+    return bool(x.min() >= -1e-4 and x.max() <= 1+1e-4)
 
 def label_at(labels, i:int) -> str:
     "Label `i`, or `'class_{i}'` when no labels were supplied."
@@ -237,13 +238,14 @@ def label_at(labels, i:int) -> str:
     return labels[i]
 
 # %% ../nbs/01_vision.ipynb #1d577772
-def decode_classify(out,                # raw model output, (n_classes,) or (1, n_classes)
+def decode_classify(out,                # raw model output, `(n_classes,)`, `(1, n_classes)` or per-frame
                     labels=None,        # class names, index-aligned
                     topk:int=5,         # how many to keep
                     multi_label:bool=False   # sigmoid per class instead of softmax over classes
                    ) -> list:
     'Turn a classifier output into a ranked list of `{label, score, index}`.'
-    v = np.asarray(out, np.float32).reshape(-1)
+    v = np.asarray(out, np.float32)
+    v = v.reshape(-1, v.shape[-1]).mean(0)      # yamnet scores every 0.48s of audio, so its frames average
     p = sigmoid(v) if multi_label else (v if is_prob(v) else softmax(v))
     idx = np.argsort(-p)[:max(1, topk)]
     return [dict(label=label_at(labels, int(i)), score=round(float(p[i]), 6), index=int(i)) for i in idx]
@@ -351,9 +353,9 @@ def decode_detect_auto(outs,            # every output array the model returned,
     outs = list(outs)
     if len(outs) == 1: return decode_yolo(outs[0], labels, conf=conf, iou=iou, meta=meta)
     if is_ssd(outs): return decode_ssd(outs, labels, conf=conf, meta=meta)
-    raise ValueError(f'{len(outs)} outputs of shape {[list(np.shape(o)) for o in outs[:4]]}: neither a YOLO '
-                     'head nor boxes/classes/scores/count. anya does not decode a raw per-stride head; '
-                     'export the model with its postprocessing included, or pass a decoder.')
+    raise ValueError(f'{len(outs)} outputs of shape {[list(np.shape(o)) for o in outs[:4]]}: neither one YOLO '
+                     'head nor boxes/classes/scores/count. Pass task= if this is not a detector, or export '
+                     'the model with its postprocessing included.')
 
 def is_ssd(outs) -> bool:
     'Are these the four tensors of a TFLite Detection PostProcess head: boxes, classes, scores, count?'
