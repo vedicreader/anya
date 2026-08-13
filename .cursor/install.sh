@@ -8,9 +8,9 @@ export PATH="$HOME/.local/bin:$PATH"
 
 uv venv --python 3.12 --allow-existing .venv
 
-# Every runtime is an optional extra, and CI needs all of them to run the notebook tests. coreml is
-# macOS-only, so 04_apple stays #| eval: false here.
-uv pip install -e '.[litert,onnx,hub,video,audio]' nbdev notebook ipykernel
+# The dev group is anya[all] plus nbdev, so the runtimes the notebook tests need come with it. coreml
+# is macOS-only by marker, which is why 04_apple stays #| eval: false here.
+uv pip install --group dev -e .
 
 # evals/e2e.py checks anya's preprocessing against timm's and HuggingFace's own transforms. CPU wheels:
 # the default index ships the CUDA build, which is 2GB of no use here.
