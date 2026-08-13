@@ -1,0 +1,14 @@
+project:
+  output-dir: _docs
+
+website:
+  title: "anya"
+  site-url: "https://vedicreader.github.io/anya"
+  description: "machine learning models as tools: load a classifier, detector or segmenter and run it over a folder"
+  repo-branch: main
+  repo-url: "https://github.com/vedicreader/anya"
+
+format-links:
+  - html
+  - format: commonmark
+    text: Markdown

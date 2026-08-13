@@ -1,0 +1,73 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "anya"
+dynamic = ["version"]
+description = "machine learning models as tools: load a classifier, detector or segmenter and run it over a folder"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+authors = [{name = "Karthik", email = "karthik.rajgopal@hotmail.com"}]
+keywords = ['nbdev', 'litert', 'tflite', 'onnx', 'coreml', 'classification', 'object detection',
+            'segmentation', 'embeddings', 'agent tools']
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
+# The core install is numpy and Pillow. Every inference runtime is an extra: their wheels are large
+# and platform-specific, and a user who wants ONNX should not download LiteRT to get it.
+dependencies = [
+    "fastcore>=1.8.0",
+    "numpy>=1.26",
+    "pillow>=10.0",
+]
+
+[project.optional-dependencies]
+litert = ["ai-edge-litert>=1.2.0"]
+onnx = ["onnxruntime>=1.20"]
+coreml = ["coremltools>=8.0; sys_platform == 'darwin'"]
+hub = ["huggingface-hub>=0.27"]
+video = ["av>=13.0"]
+audio = ["soundfile>=0.12"]
+all = ["anya[litert,onnx,coreml,hub,video,audio]"]
+
+[project.scripts]
+anya = "anya.cli:main"
+
+[project.entry-points.pyskills]
+anya = "anya.skill"
+
+[project.urls]
+Repository = "https://github.com/vedicreader/anya"
+Documentation = "https://vedicreader.github.io/anya/"
+
+[project.entry-points.nbdev]
+anya = "anya._modidx:d"
+
+[tool.nbdev]
+
+[tool.hatch.build.targets.wheel]
+packages = ["anya"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/anya", "/README.md", "/pyproject.toml"]
+
+[tool.hatch.version]
+path = "anya/__init__.py"
+
+[dependency-groups]
+dev = [
+    "anya[all]",
+    "nbdev>=3.1.0",
+    "notebook>=7.6.0",
+    "ipykernel>=7.3.0",
+    "pyskills>=0.0.21",
+]
