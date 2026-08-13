@@ -10,6 +10,7 @@ Needs the network, and `pip install 'anya[onnx,litert,hub,audio]'`. About 190MB 
 by huggingface_hub after the first run.
 """
 import sys, urllib.request
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -129,10 +130,10 @@ def detect_onnx_fp16(im):
     assert m.prep.size == (640, 640) and m.prep.resize == 'letterbox', m.prep
     assert m.prep.dtype == m.inp.dtype, (m.prep.dtype, m.inp.dtype)
     o = m(im.bus)['objects']; say('bus   ', [(d['label'], round(d['score'], 2)) for d in o[:5]])
-    assert L(o).attrgot('label').filter(lambda l: l == 'person').__len__() >= 3, o
+    assert Counter(L(o).attrgot('label'))['person'] >= 3, o
     assert biggest(o, 'bus'), o
     c = m(im.cats)['objects']; say('cats  ', [(d['label'], round(d['score'], 2)) for d in c[:5]])
-    assert L(c).attrgot('label').filter(lambda l: l == 'cat').__len__() == 2, c
+    assert Counter(L(c).attrgot('label'))['cat'] == 2, c
     assert 'remote' in L(c).attrgot('label'), c
 
 @case
@@ -147,7 +148,7 @@ def detect_litert_normalised(im):
     # this repo's config asks for a 640 centre crop, so the cats are cropped, but both are still there
     labs = L(m(im.cats)['objects']).attrgot('label')
     say('cats   ', list(labs))
-    assert len(labs.filter(lambda l: l == 'cat')) == 2, labs
+    assert Counter(labs)['cat'] == 2, labs
 
 @case
 def detect_litert_ssd(im):

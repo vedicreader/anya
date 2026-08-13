@@ -7,6 +7,7 @@ Docs: https://vedicreader.github.io/anya/core.html.md"""
 # %% ../nbs/00_core.ipynb #1da02f56
 from __future__ import annotations
 import json, os, shutil
+from collections import Counter
 from importlib import import_module
 from pathlib import Path
 
@@ -109,9 +110,7 @@ class Preds(L):
 
     def counts(self) -> dict:
         'How many items got each label, most common first.'
-        c = {}
-        for l in self.ok.labels: c[l] = c.get(l, 0) + 1
-        return dict(sorted(c.items(), key=lambda t: -t[1]))
+        return dict(Counter(self.ok.labels).most_common())
 
     def above(self, score:float) -> Preds:
         'Only the predictions the model was at least `score` confident about.'
