@@ -228,7 +228,7 @@ def sigmoid(x): return 1/(1+np.exp(-np.asarray(x, np.float32)))
 
 def is_prob(x) -> bool:
     'Is `x` in 0..1 already, so that a softmax on top of it would be wrong?'
-    # yamnet's 521 sigmoid scores sum to 4, not 1: requiring a sum of 1 softmaxed them a second time
+    # yamnet's 521 sigmoid scores sum to 4, so a sum-to-1 test would softmax an already-scored head
     x = np.asarray(x, np.float32)
     return bool(x.min() >= -1e-4 and x.max() <= 1+1e-4)
 
