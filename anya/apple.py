@@ -74,17 +74,17 @@ class CoreMLModel(Model):
         if len(self.inputs) > 1: raise ValueError(
             f'{Path(self.model_path).name} takes {len(self.inputs)} inputs; anya drives single-input models.')
         self.inp = self.inputs[0]
-        labels, norm, size, resize = with_hub_defaults(self.model_path, self.labels, norm, size, resize)
+        labels, pk = with_hub_defaults(self.model_path, self.labels, norm=norm, size=size, resize=resize)
         self.labels = read_labels(labels)
         self._task = task or ('classify' if self.kind == 'neuralNetworkClassifier'
                               else infer_task([o.shape for o in self.outputs], self.labels,
                                               [o.name for o in self.outputs]))
         # an image input is resized and handed over as pixels: Core ML owns the normalisation
-        self._prep = prep or (Prep(size=size or tuple(self.inp.shape[1:3]), layout='nhwc', dtype='uint8',
-                                   resize=resize or ('letterbox' if self._task == 'detect' else 'stretch'))
+        self._prep = prep or (Prep(size=tuple(self.inp.shape[1:3]), layout='nhwc', dtype='uint8',
+                                   resize=pk.get('resize') or ('letterbox' if self._task == 'detect' else 'stretch'),
+                                   crop_pct=pk.get('crop_pct'))
                               if self.inp.kind == 'image' else
-                              prep_from_spec(self.inp.shape, self.inp.dtype, norm=norm or '01', size=size,
-                                             resize=resize, task=self._task))
+                              prep_from_spec(self.inp.shape, self.inp.dtype, task=self._task, **pk))
         self._max_bs = 1
 
     def _mk_model(self, compute_units='ALL', **kw):

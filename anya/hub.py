@@ -58,24 +58,30 @@ def pick_file(files,            # every path in the repo
     return min(c, key=lambda f: score_file(f, prefer), default=None)
 
 # %% ../nbs/05_hub.ipynb #41dea228
+def _hw(sz) -> tuple|None:
+    'A `size` field as `(h, w)`: it is an int, a height/width pair, or a shortest edge.'
+    if isinstance(sz, int): return (sz, sz)
+    if not isinstance(sz, dict): return None
+    h, w = sz.get('height'), sz.get('width')
+    if h and w: return (int(h), int(w))
+    return (int(s), int(s)) if (s := sz.get('shortest_edge')) else None
+
 def prep_kwargs(cfg:dict) -> dict:
-    'Turn a `preprocessor_config.json` into `size=` / `norm=` / `resize=` for a `Model`.'
+    'Turn a `preprocessor_config.json` into `size=` / `norm=` / `resize=` / `crop_pct=` for a `Model`.'
     if not cfg: return {}
-    out = {}
-    sz = cfg.get('size') or cfg.get('crop_size') or {}
-    if isinstance(sz, int): out['size'] = (sz, sz)
-    elif isinstance(sz, dict):
-        h, w = sz.get('height'), sz.get('width')
-        if h and w: out['size'] = (int(h), int(w))
-        elif (s := sz.get('shortest_edge')): out['size'] = (int(s), int(s))
+    out, size, crop = {}, _hw(cfg.get('size')), _hw(cfg.get('crop_size'))
+    if cfg.get('do_center_crop'): out['resize'] = 'center_crop'
+    # size 256 with crop_size 224 means resize the short side to 256, then crop 224 out of the middle
+    if crop and size and crop != size: out['crop_pct'] = round(crop[0]/size[0], 4)
+    if (sz := (crop if cfg.get('do_center_crop') else None) or size or crop): out['size'] = sz
     m, s = cfg.get('image_mean'), cfg.get('image_std')
     if m and s: out['norm'] = (tuple(float(x) for x in m), tuple(float(x) for x in s))
-    if cfg.get('do_center_crop'): out['resize'] = 'center_crop'
     return out
 
 def config_labels(cfg:dict) -> L|None:
-    'Class names from a `config.json`, in index order.'
-    d = (cfg or {}).get('id2label')
+    'Class names from a `config.json`, in index order, out of `id2label` or an inverted `label2id`.'
+    cfg = cfg or {}
+    d = cfg.get('id2label') or {i: n for n, i in (cfg.get('label2id') or {}).items()}
     if not d: return None
     return L(v for _, v in sorted((int(k), v) for k, v in d.items()))
 

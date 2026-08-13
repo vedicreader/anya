@@ -54,7 +54,7 @@ class OnnxModel(Model):
                  task:str=None,          # override the task guessed from the output shapes
                  labels=None,            # class names: a list, a labels.txt, or a config.json
                  norm=None,              # a NORMS name or an explicit (mean, std); the repo's config by default
-                 size:tuple=None,        # override the input size, for a graph with symbolic axes
+                 size:tuple=None,        # the input size, for a graph with symbolic spatial axes
                  resize:str=None,        # 'stretch', 'letterbox', 'center_crop'
                  prep=None,              # a fully built Prep, overriding everything above
                  topk:int=5, conf:float=0.25, iou:float=0.45,
@@ -66,12 +66,11 @@ class OnnxModel(Model):
         self.model_path = str(model_file(model, model_path, file=file, revision=revision))
         self._sess = sess or mk_session(self.model_path, providers=providers, **kw)
         self._read_spec()
-        labels, norm, size, resize = with_hub_defaults(self.model_path, self.labels, norm, size, resize)
+        labels, pk = with_hub_defaults(self.model_path, self.labels, norm=norm, size=size, resize=resize)
         self.labels = read_labels(labels) or read_labels(_sidecar_labels(self.model_path))
         self._task = task or infer_task([o.shape for o in self.outputs], self.labels,
                                         [o.name for o in self.outputs])
-        self._prep = prep or prep_from_spec(self.inp.shape, self.inp.dtype, norm=norm or '01', size=size,
-                                            resize=resize, task=self._task)
+        self._prep = prep or prep_from_spec(self.inp.shape, self.inp.dtype, task=self._task, **pk)
         self._max_bs = self._batch_limit(max_bs)
 
     def _read_spec(self):

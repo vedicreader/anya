@@ -17,8 +17,8 @@ from fastcore.all import L
 __all__ = ['IMG_EXTS', 'AUD_EXTS', 'VID_EXTS', 'MEDIA_EXTS', 'IMAGENET', 'media_kind', 'load_image', 'img_size', 'load_audio',
            'video_frames', 'Prep', 'AudioPrep', 'letterbox', 'center_crop', 'fit', 'apply_prep', 'apply_audio_prep',
            'batch', 'softmax', 'sigmoid', 'is_prob', 'label_at', 'decode_classify', 'xywh2xyxy', 'nms', 'scale_boxes',
-           'decode_yolo', 'decode_ssd', 'decode_detect_auto', 'decode_segment', 'mask_image', 'l2norm', 'similarity',
-           'read_labels']
+           'decode_yolo', 'decode_ssd', 'decode_detect_auto', 'chan_first', 'resize_mask', 'decode_segment',
+           'mask_image', 'l2norm', 'similarity', 'pool_embed', 'read_labels']
 
 # %% ../nbs/01_vision.ipynb #94499641
 IMG_EXTS = set('.jpg .jpeg .png .bmp .gif .webp .tif .tiff .ppm .pgm'.split())
@@ -109,12 +109,13 @@ class Prep:
     mean:tuple=(0., 0., 0.)          # then subtract, per channel
     std:tuple=(1., 1., 1.)           # then divide, per channel
     resize:str='stretch'             # 'stretch', 'letterbox', or 'center_crop'
+    crop_pct:float=None              # with 'center_crop', the fraction of the short side kept
     quant:tuple=None                 # (scale, zero_point) of a quantised input tensor
     bgr:bool=False                   # channel order the model was trained on
 
     def __repr__(self):
-        q = f', quant={self.quant}' if self.quant else ''
-        return f'Prep({self.size}, {self.layout}, {self.dtype}, resize={self.resize}{q})'
+        x = ''.join(f', {k}={v}' for k, v in (('crop_pct', self.crop_pct), ('quant', self.quant)) if v)
+        return f'Prep({self.size}, {self.layout}, {self.dtype}, resize={self.resize}{x})'
 
 @dataclass
 class AudioPrep:
@@ -146,20 +147,24 @@ def letterbox(a,               # uint8 HWC image
     out[top:top+nh, left:left+nw] = _pil_resize(a, (nh, nw))
     return out, dict(ratio=r, pad=(left, top), orig=(h, w), size=(th, tw))
 
-def center_crop(a, size:tuple) -> tuple:
-    'Scale the short side to fit `size` then crop the centre; returns `(image, meta)`.'
+def center_crop(a,               # uint8 HWC image
+                size:tuple,      # (h, w) to end up with
+                pct:float=None   # fraction of the short side to keep, timm's crop_pct
+               ) -> tuple:
+    'Scale the short side to `size/pct` then crop `size` out of the centre; returns `(image, meta)`.'
     h, w = a.shape[:2]; th, tw = size
-    r = max(th/h, tw/w)
-    nh, nw = max(th, int(round(h*r))), max(tw, int(round(w*r)))
+    sh, sw = (round(th/pct), round(tw/pct)) if pct else (th, tw)
+    r = max(sh/h, sw/w)
+    nh, nw = max(sh, int(round(h*r))), max(sw, int(round(w*r)))
     b = _pil_resize(a, (nh, nw))
     top, left = (nh-th)//2, (nw-tw)//2
     return b[top:top+th, left:left+tw], dict(ratio=r, pad=(-left, -top), orig=(h, w), size=(th, tw))
 
-def fit(a, size:tuple, mode:str='stretch') -> tuple:
+def fit(a, size:tuple, mode:str='stretch', pct:float=None) -> tuple:
     'Resize `a` to `size` by `mode`; returns `(image, meta)` where meta un-maps coordinates.'
     if size is None: return a, dict(ratio=1.0, pad=(0,0), orig=a.shape[:2], size=a.shape[:2])
     if mode == 'letterbox': return letterbox(a, size)
-    if mode == 'center_crop': return center_crop(a, size)
+    if mode == 'center_crop': return center_crop(a, size, pct)
     h, w = a.shape[:2]
     return _pil_resize(a, size), dict(ratio=(size[0]/h, size[1]/w), pad=(0,0), orig=(h, w), size=tuple(size))
 
@@ -168,7 +173,7 @@ def apply_prep(a,          # uint8 HWC image
                p:Prep      # what the model wants
               ) -> tuple:
     'Apply `p` to one image; returns `(tensor without batch axis, meta)`.'
-    x, meta = fit(a, p.size, p.resize)
+    x, meta = fit(a, p.size, p.resize, p.crop_pct)
     if p.bgr: x = x[..., ::-1]
     if p.quant:                                     # a quantised model wants the raw integer grid
         qs, zp = p.quant
@@ -341,6 +346,22 @@ def decode_detect_auto(outs,            # every output array the model returned,
     return decode_yolo(outs[0], labels, conf=conf, iou=iou, meta=meta)
 
 # %% ../nbs/01_vision.ipynb #c7c8992c
+def chan_first(shape,          # a 3-axis segmentation output shape
+               n:int=None      # how many classes, when the labels say
+              ) -> bool:
+    'Is a segmentation output C,H,W rather than H,W,C? SegFormer puts 150 classes on a 128x128 grid.'
+    c, h, w = (int(x) for x in shape)
+    if n and n in (c, w) and c != w: return c == n
+    if h == w != c: return True                    # the last two axes match, so they are the pixel grid
+    if h == c != w: return False
+    return c < w
+
+def resize_mask(m, size:tuple) -> np.ndarray:
+    'Nearest-neighbour resize of a label map, so no class the model never emitted appears in it.'
+    from PIL import Image
+    im = Image.fromarray(np.asarray(m, np.int32), mode='I')
+    return np.asarray(im.resize((size[1], size[0]), Image.NEAREST), dtype=np.int32)
+
 def decode_segment(out,            # (1, C, H, W), (1, H, W, C) or (1, H, W) logits or a label map
                    labels=None,
                    meta:dict=None,
@@ -349,11 +370,11 @@ def decode_segment(out,            # (1, C, H, W), (1, H, W, C) or (1, H, W) log
     'Argmax a segmentation output into a label map plus the per-class pixel share.'
     a = np.asarray(out, np.float32)
     if a.ndim == 4: a = a[0]
-    if a.ndim == 3:
-        chw = a.shape[0] < a.shape[-1] and a.shape[0] < 512      # channels first if the first axis is small
-        m = a.argmax(0 if chw else -1)
-    else: m = a.astype(np.int64)
-    m = m.astype(np.int32)
+    m = a.argmax(0 if chan_first(a.shape, len(labels) if labels else None) else -1) if a.ndim == 3 else a
+    m = np.asarray(m, np.int32)
+    orig, pad = (meta or {}).get('orig'), (meta or {}).get('pad') or (0, 0)
+    # a stretched map covers the whole picture, so it can go back on it; a padded or cropped one cannot
+    if orig and not any(pad) and tuple(orig) != m.shape: m = resize_mask(m, orig)
     ids, cnt = np.unique(m, return_counts=True)
     tot = float(m.size)
     cls = [dict(label=label_at(labels, int(i)), index=int(i), frac=round(float(c/tot), 5))
@@ -379,6 +400,14 @@ def l2norm(v, axis=-1):
 def similarity(a, b) -> np.ndarray:
     'Cosine similarity between two sets of embeddings.'
     return l2norm(np.atleast_2d(a)) @ l2norm(np.atleast_2d(b)).T
+
+def pool_embed(out) -> np.ndarray:
+    'One unit-length vector from an embedding output; a token sequence or feature map is mean-pooled.'
+    a = np.asarray(out, np.float32)
+    if a.ndim > 1: a = a[0]                                        # the batch axis, always 1 here
+    if a.ndim == 3: a = a.mean((1, 2) if chan_first(a.shape) else (0, 1))
+    if a.ndim == 2: a = a.mean(0)                                  # 257 patch tokens of a ViT, say
+    return l2norm(a.reshape(-1))
 
 # %% ../nbs/01_vision.ipynb #f1e9e44f
 def read_labels(o) -> L:

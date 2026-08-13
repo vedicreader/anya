@@ -72,13 +72,14 @@ class LitertModel(Model):
         self.model_path = str(model_file(model, model_path, file=file, revision=revision))
         self._sess = interp or self._mk_interp(threads, **kw)
         self._read_spec()
-        labels, norm, size, resize = with_hub_defaults(self.model_path, self.labels, norm, size, resize)
+        labels, pk = with_hub_defaults(self.model_path, self.labels, size=size, resize=resize,
+                                       norm=None if norm == 'auto' else norm)
         self.labels = read_labels(labels) or tflite_labels(self.model_path)
         self._task = task or infer_task([o.shape for o in self.outputs], self.labels,
                                         [o.name for o in self.outputs])
-        if norm in (None, 'auto'): norm = norm_from_quant(self.inp.quant, self.inp.dtype) or '01'
-        self._prep = prep or prep_from_spec(self.inp.shape, self.inp.dtype, norm=norm, size=size,
-                                            resize=resize, task=self._task, quant=self.inp.quant)
+        pk.setdefault('norm', norm_from_quant(self.inp.quant, self.inp.dtype) or '01')
+        self._prep = prep or prep_from_spec(self.inp.shape, self.inp.dtype, task=self._task,
+                                            quant=self.inp.quant, **pk)
         self._max_bs = self._resize_batch(max_bs)
 
     def _mk_interp(self, threads=None, **kw):
