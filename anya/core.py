@@ -214,7 +214,7 @@ def infer_task(shapes,          # output shapes the model declares, in order
     return 'classify'
 
 # %% ../nbs/00_core.ipynb #4307c356
-from .vision import IMAGENET
+from .vision import BILINEAR, IMAGENET
 
 NORMS = {'01':       ((0., 0., 0.), (1., 1., 1.)),        # pixels in 0..1
          'imagenet': IMAGENET,                            # torchvision and timm exports
@@ -237,6 +237,7 @@ def prep_from_spec(shape,                 # the input tensor shape the model dec
                    size:tuple=None,       # size for the axes the shape leaves symbolic
                    resize:str=None,       # 'stretch', 'letterbox', 'center_crop'
                    crop_pct:float=None,   # fraction of the short side kept by 'center_crop'
+                   resample:int=None,     # PIL resample filter; bilinear unless the config says otherwise
                    quant:tuple=None,      # (scale, zero_point) for a quantised input
                    task:str=None,         # only used to pick a default size and resize mode
                    layout:str=None,       # override the channel-axis guess
@@ -257,7 +258,8 @@ def prep_from_spec(shape,                 # the input tensor shape the model dec
     mean, std = NORMS[norm] if isinstance(norm, str) else norm
     scale = 1.0 if norm == 'none' else 1/255
     return Prep(size=size, layout=lay, dtype=dtype, scale=scale, mean=mean, std=std, crop_pct=crop_pct,
-                resize=resize or ('letterbox' if task == 'detect' else 'stretch'), quant=quant, bgr=bgr)
+                resample=resample or BILINEAR, quant=quant, bgr=bgr,
+                resize=resize or ('letterbox' if task == 'detect' else 'stretch'))
 
 # %% ../nbs/00_core.ipynb #f7d2571c
 class Model:

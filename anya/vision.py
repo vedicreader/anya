@@ -14,11 +14,11 @@ import numpy as np
 from fastcore.all import L
 
 # %% auto #0
-__all__ = ['IMG_EXTS', 'AUD_EXTS', 'VID_EXTS', 'MEDIA_EXTS', 'IMAGENET', 'media_kind', 'load_image', 'img_size', 'load_audio',
-           'video_frames', 'Prep', 'AudioPrep', 'letterbox', 'center_crop', 'fit', 'apply_prep', 'apply_audio_prep',
-           'batch', 'softmax', 'sigmoid', 'is_prob', 'label_at', 'decode_classify', 'xywh2xyxy', 'nms', 'scale_boxes',
-           'decode_yolo', 'decode_ssd', 'decode_detect_auto', 'chan_first', 'resize_mask', 'decode_segment',
-           'mask_image', 'l2norm', 'similarity', 'pool_embed', 'read_labels']
+__all__ = ['IMG_EXTS', 'AUD_EXTS', 'VID_EXTS', 'MEDIA_EXTS', 'BILINEAR', 'BICUBIC', 'IMAGENET', 'media_kind', 'load_image',
+           'img_size', 'load_audio', 'video_frames', 'Prep', 'AudioPrep', 'letterbox', 'center_crop', 'fit',
+           'apply_prep', 'apply_audio_prep', 'batch', 'softmax', 'sigmoid', 'is_prob', 'label_at', 'decode_classify',
+           'xywh2xyxy', 'nms', 'scale_boxes', 'decode_yolo', 'decode_ssd', 'decode_detect_auto', 'chan_first',
+           'resize_mask', 'decode_segment', 'mask_image', 'l2norm', 'similarity', 'pool_embed', 'read_labels']
 
 # %% ../nbs/01_vision.ipynb #94499641
 IMG_EXTS = set('.jpg .jpeg .png .bmp .gif .webp .tif .tiff .ppm .pgm'.split())
@@ -99,6 +99,8 @@ def video_frames(o,                    # path or str of a video file
             if max_frames and n >= max_frames: return
 
 # %% ../nbs/01_vision.ipynb #cb3bdc1e
+BILINEAR, BICUBIC = 2, 3          # PIL's resample ids, and what a preprocessor config puts in `resample`
+
 @dataclass
 class Prep:
     'How to turn a `uint8` HWC image into the exact tensor one model expects.'
@@ -110,12 +112,14 @@ class Prep:
     std:tuple=(1., 1., 1.)           # then divide, per channel
     resize:str='stretch'             # 'stretch', 'letterbox', or 'center_crop'
     crop_pct:float=None              # with 'center_crop', the fraction of the short side kept
+    resample:int=BILINEAR            # PIL filter id, the way `preprocessor_config.json` writes it
     quant:tuple=None                 # (scale, zero_point) of a quantised input tensor
     bgr:bool=False                   # channel order the model was trained on
 
     def __repr__(self):
         x = ''.join(f', {k}={v}' for k, v in (('crop_pct', self.crop_pct), ('quant', self.quant)) if v)
-        return f'Prep({self.size}, {self.layout}, {self.dtype}, resize={self.resize}{x})'
+        r = '' if self.resample == BILINEAR else f', resample={self.resample}'
+        return f'Prep({self.size}, {self.layout}, {self.dtype}, resize={self.resize}{x}{r})'
 
 @dataclass
 class AudioPrep:
@@ -130,13 +134,14 @@ class AudioPrep:
 IMAGENET = ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))   # torchvision's, the most common in the wild
 
 # %% ../nbs/01_vision.ipynb #ea8d68aa
-def _pil_resize(a, size):
+def _pil_resize(a, size, resample=BILINEAR):
     from PIL import Image
-    return np.asarray(Image.fromarray(a).resize((size[1], size[0]), Image.BILINEAR), dtype=np.uint8)
+    return np.asarray(Image.fromarray(a).resize((size[1], size[0]), resample), dtype=np.uint8)
 
-def letterbox(a,               # uint8 HWC image
-              size:tuple,      # (h, w) to fit into
-              color:int=114    # pad value, YOLO's grey
+def letterbox(a,                    # uint8 HWC image
+              size:tuple,           # (h, w) to fit into
+              color:int=114,        # pad value, YOLO's grey
+              resample=BILINEAR
              ) -> tuple:
     'Resize `a` into `size` keeping aspect ratio, padding the rest; returns `(image, meta)`.'
     h, w = a.shape[:2]; th, tw = size
@@ -144,36 +149,38 @@ def letterbox(a,               # uint8 HWC image
     nh, nw = max(1, int(round(h*r))), max(1, int(round(w*r)))
     out = np.full((th, tw, a.shape[2]), color, np.uint8)
     top, left = (th-nh)//2, (tw-nw)//2
-    out[top:top+nh, left:left+nw] = _pil_resize(a, (nh, nw))
+    out[top:top+nh, left:left+nw] = _pil_resize(a, (nh, nw), resample)
     return out, dict(ratio=r, pad=(left, top), orig=(h, w), size=(th, tw))
 
-def center_crop(a,               # uint8 HWC image
-                size:tuple,      # (h, w) to end up with
-                pct:float=None   # fraction of the short side to keep, timm's crop_pct
+def center_crop(a,                  # uint8 HWC image
+                size:tuple,         # (h, w) to end up with
+                pct:float=None,     # fraction of the short side to keep, timm's crop_pct
+                resample=BILINEAR
                ) -> tuple:
     'Scale the short side to `size/pct` then crop `size` out of the centre; returns `(image, meta)`.'
     h, w = a.shape[:2]; th, tw = size
     sh, sw = (round(th/pct), round(tw/pct)) if pct else (th, tw)
     r = max(sh/h, sw/w)
     nh, nw = max(sh, int(round(h*r))), max(sw, int(round(w*r)))
-    b = _pil_resize(a, (nh, nw))
+    b = _pil_resize(a, (nh, nw), resample)
     top, left = (nh-th)//2, (nw-tw)//2
     return b[top:top+th, left:left+tw], dict(ratio=r, pad=(-left, -top), orig=(h, w), size=(th, tw))
 
-def fit(a, size:tuple, mode:str='stretch', pct:float=None) -> tuple:
+def fit(a, size:tuple, mode:str='stretch', pct:float=None, resample=BILINEAR) -> tuple:
     'Resize `a` to `size` by `mode`; returns `(image, meta)` where meta un-maps coordinates.'
     if size is None: return a, dict(ratio=1.0, pad=(0,0), orig=a.shape[:2], size=a.shape[:2])
-    if mode == 'letterbox': return letterbox(a, size)
-    if mode == 'center_crop': return center_crop(a, size, pct)
+    if mode == 'letterbox': return letterbox(a, size, resample=resample)
+    if mode == 'center_crop': return center_crop(a, size, pct, resample)
     h, w = a.shape[:2]
-    return _pil_resize(a, size), dict(ratio=(size[0]/h, size[1]/w), pad=(0,0), orig=(h, w), size=tuple(size))
+    return (_pil_resize(a, size, resample),
+            dict(ratio=(size[0]/h, size[1]/w), pad=(0,0), orig=(h, w), size=tuple(size)))
 
 # %% ../nbs/01_vision.ipynb #f94cf633
 def apply_prep(a,          # uint8 HWC image
                p:Prep      # what the model wants
               ) -> tuple:
     'Apply `p` to one image; returns `(tensor without batch axis, meta)`.'
-    x, meta = fit(a, p.size, p.resize, p.crop_pct)
+    x, meta = fit(a, p.size, p.resize, p.crop_pct, p.resample)
     if p.bgr: x = x[..., ::-1]
     if p.quant:                                     # a quantised model wants the raw integer grid
         qs, zp = p.quant

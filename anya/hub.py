@@ -76,6 +76,8 @@ def prep_kwargs(cfg:dict) -> dict:
     if (sz := (crop if cfg.get('do_center_crop') else None) or size or crop): out['size'] = sz
     m, s = cfg.get('image_mean'), cfg.get('image_std')
     if m and s: out['norm'] = (tuple(float(x) for x in m), tuple(float(x) for x in s))
+    # bicubic against bilinear moved top-1 on one of five photos, so the filter is worth carrying
+    if isinstance(cfg.get('resample'), int): out['resample'] = cfg['resample']
     return out
 
 def config_labels(cfg:dict) -> L|None:
