@@ -200,8 +200,8 @@ def infer_task(shapes,          # output shapes the model declares, in order
                names=None       # output tensor names, which often say it outright
               ) -> str:
     'Guess the task from output shapes: four heads is a detector, a grid of classes is a segmenter.'
-    # 'logits' is what a classifier and a segmenter both call their output, so it says nothing
     ns = ' '.join(str(n).lower() for n in (names or []))
+    # no 'logit': it is what a classifier and a segmenter both call their output, so it says nothing
     for k, t in (('box', 'detect'), ('mask', 'segment'), ('segment', 'segment'),
                  ('embed', 'embed'), ('feature', 'embed'), ('hidden', 'embed')):
         if k in ns: return t

@@ -37,7 +37,8 @@ COCO90 = ('person bicycle car motorcycle airplane bus train truck boat traffic_l
 
 # %% ------------------------------------------------------------------ harness
 
-PICS, SORTED = CACHE/'photos', CACHE/'sorted'      # the sorted tree stays outside the folder being read
+PICS = CACHE/'photos'
+SORTED_IN = PICS/'sorted'        # deliberately inside the folder being read, which is the usual case
 
 def photos() -> AttrDict:
     'Download the test photographs once into evals/.cache/photos and return `{name: path}`.'
@@ -214,7 +215,7 @@ def embed_onnx(im):
     p = m(im.cats)
     say('vec', p.vec.shape, 'norm', round(float(np.linalg.norm(p.vec)), 4))
     assert p.vec.shape == (384,), p.vec.shape
-    hits = find_similar(im.cats, PICS, m, n=5)
+    hits = find_similar(im.cats, PICS, m, n=5, exclude=SORTED_IN)   # or the sorted tree answers 1.0 five times
     say('similar', [(Path(h.src).stem, round(h.score, 3)) for h in hits])
     assert Path(hits[0].src).name == im.cats.name, hits[0]          # the query matches itself first
     assert hits[1].score > hits[-1].score, hits
@@ -242,15 +243,14 @@ def audio_litert(im):
 @case
 def tasks_and_tools(im):
     'One line per job, and the same jobs shaped for a model to call.'
-    inside = PICS/'sorted'                     # inside the folder being read, which is the usual case
-    ps = classify(PICS, IMAGENET, topk=1, exclude=inside)     # or a previous run's tree counts twice
+    ps = classify(PICS, IMAGENET, topk=1, exclude=SORTED_IN)   # or a previous run's tree counts twice
     s = summarize(ps); say('classify folder', s.n, 'items,', s.failed, 'failed, mean', s.mean_score)
     assert s.n == len(PHOTOS) and s.failed == 0, s
 
-    r = sort_images(PICS, IMAGENET, dest=inside, min_score=0.3, how='link', dry_run=False)
+    r = sort_images(PICS, IMAGENET, dest=SORTED_IN, min_score=0.3, how='link', dry_run=False)
     say('sorted', r.moved, 'into', len(r.labels), 'folders:', sorted(x[:18] for x in r.labels))
     assert r.moved == len(PHOTOS) and any('tabby' in x for x in r.labels), r
-    again = sort_images(PICS, IMAGENET, dest=inside, dry_run=True)
+    again = sort_images(PICS, IMAGENET, dest=SORTED_IN, dry_run=True)
     assert again.n == len(PHOTOS), again.n     # exclude= keeps the second run out of the first run's output
 
     d = classify_image(str(im.cats), IMAGENET, topk=2)
