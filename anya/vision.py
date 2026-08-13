@@ -6,7 +6,7 @@ Docs: https://vedicreader.github.io/anya/vision.html.md"""
 
 # %% ../nbs/01_vision.ipynb #ac3b1343
 from __future__ import annotations
-import io, mimetypes
+import io, json, mimetypes
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,10 +14,11 @@ import numpy as np
 from fastcore.all import L
 
 # %% auto #0
-__all__ = ['IMG_EXTS', 'AUD_EXTS', 'VID_EXTS', 'MEDIA_EXTS', 'IMAGENET', 'media_kind', 'load_image', 'img_size', 'load_audio',
-           'video_frames', 'Prep', 'AudioPrep', 'letterbox', 'center_crop', 'fit', 'apply_prep', 'apply_audio_prep',
-           'batch', 'softmax', 'sigmoid', 'is_prob', 'label_at', 'decode_classify', 'xywh2xyxy', 'nms', 'scale_boxes',
-           'decode_yolo', 'decode_ssd', 'decode_detect_auto', 'decode_segment', 'mask_image', 'l2norm', 'similarity',
+__all__ = ['IMG_EXTS', 'AUD_EXTS', 'VID_EXTS', 'MEDIA_EXTS', 'BILINEAR', 'BICUBIC', 'IMAGENET', 'media_kind', 'load_image',
+           'img_size', 'load_audio', 'video_frames', 'Prep', 'AudioPrep', 'letterbox', 'center_crop', 'fit',
+           'apply_prep', 'apply_audio_prep', 'batch', 'softmax', 'sigmoid', 'is_prob', 'label_at', 'decode_classify',
+           'xywh2xyxy', 'nms', 'scale_boxes', 'decode_yolo', 'decode_ssd', 'decode_detect_auto', 'is_ssd', 'chan_first',
+           'resize_mask', 'decode_segment', 'mask_image', 'l2norm', 'similarity', 'pool_embed', 'label_map',
            'read_labels']
 
 # %% ../nbs/01_vision.ipynb #94499641
@@ -99,6 +100,8 @@ def video_frames(o,                    # path or str of a video file
             if max_frames and n >= max_frames: return
 
 # %% ../nbs/01_vision.ipynb #cb3bdc1e
+BILINEAR, BICUBIC = 2, 3          # PIL's resample ids, and what a preprocessor config puts in `resample`
+
 @dataclass
 class Prep:
     'How to turn a `uint8` HWC image into the exact tensor one model expects.'
@@ -109,12 +112,15 @@ class Prep:
     mean:tuple=(0., 0., 0.)          # then subtract, per channel
     std:tuple=(1., 1., 1.)           # then divide, per channel
     resize:str='stretch'             # 'stretch', 'letterbox', or 'center_crop'
+    crop_pct:float=None              # with 'center_crop', the fraction of the short side kept
+    resample:int=BILINEAR            # PIL filter id, the way `preprocessor_config.json` writes it
     quant:tuple=None                 # (scale, zero_point) of a quantised input tensor
     bgr:bool=False                   # channel order the model was trained on
 
     def __repr__(self):
-        q = f', quant={self.quant}' if self.quant else ''
-        return f'Prep({self.size}, {self.layout}, {self.dtype}, resize={self.resize}{q})'
+        x = ''.join(f', {k}={v}' for k, v in (('crop_pct', self.crop_pct), ('quant', self.quant)) if v)
+        r = '' if self.resample == BILINEAR else f', resample={self.resample}'
+        return f'Prep({self.size}, {self.layout}, {self.dtype}, resize={self.resize}{x}{r})'
 
 @dataclass
 class AudioPrep:
@@ -129,13 +135,14 @@ class AudioPrep:
 IMAGENET = ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))   # torchvision's, the most common in the wild
 
 # %% ../nbs/01_vision.ipynb #ea8d68aa
-def _pil_resize(a, size):
+def _pil_resize(a, size, resample=BILINEAR):
     from PIL import Image
-    return np.asarray(Image.fromarray(a).resize((size[1], size[0]), Image.BILINEAR), dtype=np.uint8)
+    return np.asarray(Image.fromarray(a).resize((size[1], size[0]), resample), dtype=np.uint8)
 
-def letterbox(a,               # uint8 HWC image
-              size:tuple,      # (h, w) to fit into
-              color:int=114    # pad value, YOLO's grey
+def letterbox(a,                    # uint8 HWC image
+              size:tuple,           # (h, w) to fit into
+              color:int=114,        # pad value, YOLO's grey
+              resample=BILINEAR
              ) -> tuple:
     'Resize `a` into `size` keeping aspect ratio, padding the rest; returns `(image, meta)`.'
     h, w = a.shape[:2]; th, tw = size
@@ -143,32 +150,38 @@ def letterbox(a,               # uint8 HWC image
     nh, nw = max(1, int(round(h*r))), max(1, int(round(w*r)))
     out = np.full((th, tw, a.shape[2]), color, np.uint8)
     top, left = (th-nh)//2, (tw-nw)//2
-    out[top:top+nh, left:left+nw] = _pil_resize(a, (nh, nw))
+    out[top:top+nh, left:left+nw] = _pil_resize(a, (nh, nw), resample)
     return out, dict(ratio=r, pad=(left, top), orig=(h, w), size=(th, tw))
 
-def center_crop(a, size:tuple) -> tuple:
-    'Scale the short side to fit `size` then crop the centre; returns `(image, meta)`.'
+def center_crop(a,                  # uint8 HWC image
+                size:tuple,         # (h, w) to end up with
+                pct:float=None,     # fraction of the short side to keep, timm's crop_pct
+                resample=BILINEAR
+               ) -> tuple:
+    'Scale the short side to `size/pct` then crop `size` out of the centre; returns `(image, meta)`.'
     h, w = a.shape[:2]; th, tw = size
-    r = max(th/h, tw/w)
-    nh, nw = max(th, int(round(h*r))), max(tw, int(round(w*r)))
-    b = _pil_resize(a, (nh, nw))
+    sh, sw = (max(th, round(th/pct)), max(tw, round(tw/pct))) if pct else (th, tw)
+    r = max(sh/h, sw/w)
+    nh, nw = max(sh, int(round(h*r))), max(sw, int(round(w*r)))
+    b = _pil_resize(a, (nh, nw), resample)
     top, left = (nh-th)//2, (nw-tw)//2
     return b[top:top+th, left:left+tw], dict(ratio=r, pad=(-left, -top), orig=(h, w), size=(th, tw))
 
-def fit(a, size:tuple, mode:str='stretch') -> tuple:
+def fit(a, size:tuple, mode:str='stretch', pct:float=None, resample=BILINEAR) -> tuple:
     'Resize `a` to `size` by `mode`; returns `(image, meta)` where meta un-maps coordinates.'
     if size is None: return a, dict(ratio=1.0, pad=(0,0), orig=a.shape[:2], size=a.shape[:2])
-    if mode == 'letterbox': return letterbox(a, size)
-    if mode == 'center_crop': return center_crop(a, size)
+    if mode == 'letterbox': return letterbox(a, size, resample=resample)
+    if mode == 'center_crop': return center_crop(a, size, pct, resample)
     h, w = a.shape[:2]
-    return _pil_resize(a, size), dict(ratio=(size[0]/h, size[1]/w), pad=(0,0), orig=(h, w), size=tuple(size))
+    return (_pil_resize(a, size, resample),
+            dict(ratio=(size[0]/h, size[1]/w), pad=(0,0), orig=(h, w), size=tuple(size)))
 
 # %% ../nbs/01_vision.ipynb #f94cf633
 def apply_prep(a,          # uint8 HWC image
                p:Prep      # what the model wants
               ) -> tuple:
     'Apply `p` to one image; returns `(tensor without batch axis, meta)`.'
-    x, meta = fit(a, p.size, p.resize)
+    x, meta = fit(a, p.size, p.resize, p.crop_pct, p.resample)
     if p.bgr: x = x[..., ::-1]
     if p.quant:                                     # a quantised model wants the raw integer grid
         qs, zp = p.quant
@@ -214,9 +227,10 @@ def softmax(x, axis=-1):
 def sigmoid(x): return 1/(1+np.exp(-np.asarray(x, np.float32)))
 
 def is_prob(x) -> bool:
-    'Does `x` already look like a probability vector (0..1 and summing to 1)?'
+    'Is `x` in 0..1 already, so that a softmax on top of it would be wrong?'
+    # yamnet's 521 sigmoid scores sum to 4, so a sum-to-1 test would softmax an already-scored head
     x = np.asarray(x, np.float32)
-    return bool(x.min() >= -1e-4 and x.max() <= 1+1e-4 and abs(float(x.sum())-1) < 1e-2)
+    return bool(x.min() >= -1e-4 and x.max() <= 1+1e-4)
 
 def label_at(labels, i:int) -> str:
     "Label `i`, or `'class_{i}'` when no labels were supplied."
@@ -224,13 +238,14 @@ def label_at(labels, i:int) -> str:
     return labels[i]
 
 # %% ../nbs/01_vision.ipynb #1d577772
-def decode_classify(out,                # raw model output, (n_classes,) or (1, n_classes)
+def decode_classify(out,                # raw model output, `(n_classes,)`, `(1, n_classes)` or per-frame
                     labels=None,        # class names, index-aligned
                     topk:int=5,         # how many to keep
                     multi_label:bool=False   # sigmoid per class instead of softmax over classes
                    ) -> list:
     'Turn a classifier output into a ranked list of `{label, score, index}`.'
-    v = np.asarray(out, np.float32).reshape(-1)
+    v = np.asarray(out, np.float32)
+    v = v.reshape(-1, v.shape[-1]).mean(0)      # yamnet scores every 0.48s of audio, so its frames average
     p = sigmoid(v) if multi_label else (v if is_prob(v) else softmax(v))
     idx = np.argsort(-p)[:max(1, topk)]
     return [dict(label=label_at(labels, int(i)), score=round(float(p[i]), 6), index=int(i)) for i in idx]
@@ -281,7 +296,7 @@ def decode_yolo(out,                 # (1, 4+nc, N) or (1, N, 4+nc), optionally 
                 iou:float=0.45,
                 meta:dict=None,      # from `fit`, to put boxes back on the original image
                 max_det:int=300,
-                normalized:bool=False  # output boxes are 0..1 rather than input pixels
+                normalized:bool=None   # boxes are 0..1 rather than input pixels; None reads it off their range
                ) -> list:
     'Decode a YOLO-family output into `{label, score, box, index}` dicts with xyxy boxes.'
     a = np.asarray(out, np.float32)
@@ -289,6 +304,8 @@ def decode_yolo(out,                 # (1, 4+nc, N) or (1, N, 4+nc), optionally 
     if a.shape[0] < a.shape[1]: a = a.T          # (4+nc, N) -> (N, 4+nc)
     nc = a.shape[1] - 4
     box, cls = a[:, :4], a[:, 4:]
+    # the same (1, 84, 8400) signature ships both units: two of three yolo exports tested are normalised
+    if normalized is None: normalized = bool(len(box)) and float(box.max()) <= 2.0
     obj = (len(labels) == nc-1) if labels is not None and len(labels) in (nc, nc-1) else _looks_objectness(cls)
     if obj and nc > 1: cls = cls[:, 1:] * cls[:, :1]      # v5/v7 put an objectness column first
     if cls.max(initial=0.) > 1.0 + 1e-3: cls = sigmoid(cls)
@@ -316,17 +333,14 @@ def decode_ssd(outs,             # the four tensors of a TFLite Detection PostPr
     'Decode boxes/classes/scores/count outputs, whose boxes are normalised `ymin,xmin,ymax,xmax`.'
     boxes, classes, scores = [np.asarray(o, np.float32).reshape(-1, 4 if i == 0 else 1) for i, o in enumerate(outs[:3])]
     n = int(np.asarray(outs[3]).reshape(-1)[0]) if len(outs) > 3 else len(scores)
-    h, w = (meta or {}).get('orig', (1, 1))
-    out = []
-    for i in range(min(n, len(scores))):
-        s = float(scores[i, 0])
-        if s < conf: continue
-        ymin, xmin, ymax, xmax = boxes[i]
-        ci = int(classes[i, 0]) + offset
-        out.append(dict(label=label_at(labels, ci), score=round(s, 6), index=ci,
-                        box=[round(float(xmin*w), 2), round(float(ymin*h), 2),
-                             round(float(xmax*w), 2), round(float(ymax*h), 2)]))
-    return out
+    keep = [i for i in range(min(n, len(scores))) if scores[i, 0] >= conf]
+    b = boxes[keep][:, [1, 0, 3, 2]]                          # ymin,xmin,ymax,xmax -> xyxy
+    # normalised against the padded input, so they go through scale_boxes like any other detector's
+    h, w = (meta or {}).get('size') or (1, 1)
+    box = scale_boxes(b * np.array([w, h, w, h], np.float32), meta) if meta else b
+    return [dict(label=label_at(labels, int(classes[i, 0]) + offset), score=round(float(scores[i, 0]), 6),
+                 index=int(classes[i, 0]) + offset, box=[round(float(v), 2) for v in box[j]])
+            for j, i in enumerate(keep)]
 
 # %% ../nbs/01_vision.ipynb #497f8084
 def decode_detect_auto(outs,            # every output array the model returned, in declared order
@@ -335,12 +349,38 @@ def decode_detect_auto(outs,            # every output array the model returned,
                        iou:float=0.45,
                        meta:dict=None
                       ) -> list:
-    'Decode a detector without being told its family: three or more heads is SSD, one is YOLO.'
+    'Decode a detector without being told its family: a postprocess head is SSD, one tensor is YOLO.'
     outs = list(outs)
-    if len(outs) >= 3: return decode_ssd(outs, labels, conf=conf, meta=meta)
-    return decode_yolo(outs[0], labels, conf=conf, iou=iou, meta=meta)
+    if len(outs) == 1: return decode_yolo(outs[0], labels, conf=conf, iou=iou, meta=meta)
+    if is_ssd(outs): return decode_ssd(outs, labels, conf=conf, meta=meta)
+    raise ValueError(f'{len(outs)} outputs of shape {[list(np.shape(o)) for o in outs[:4]]}: neither one YOLO '
+                     'head nor boxes/classes/scores/count. Pass task= if this is not a detector, or export '
+                     'the model with its postprocessing included.')
+
+def is_ssd(outs) -> bool:
+    'Are these the four tensors of a TFLite Detection PostProcess head: boxes, classes, scores, count?'
+    if len(outs) < 3: return False
+    s = [np.shape(o) for o in outs[:3]]
+    n = s[0][-2] if len(s[0]) >= 2 else 0
+    return s[0][-1] == 4 and n > 0 and all(int(np.prod(x)) == n for x in s[1:])
 
 # %% ../nbs/01_vision.ipynb #c7c8992c
+def chan_first(shape,          # a 3-axis segmentation output shape
+               n:int=None      # how many classes, when the labels say
+              ) -> bool:
+    'Is a segmentation output C,H,W rather than H,W,C? SegFormer puts 150 classes on a 128x128 grid.'
+    c, h, w = (int(x) for x in shape)
+    if n and n in (c, w) and c != w: return c == n
+    if h == w != c: return True                    # the last two axes match, so they are the pixel grid
+    if h == c != w: return False
+    return c < w
+
+def resize_mask(m, size:tuple) -> np.ndarray:
+    'Nearest-neighbour resize of a label map, so no class the model never emitted appears in it.'
+    from PIL import Image
+    im = Image.fromarray(np.asarray(m, np.int32), mode='I')
+    return np.asarray(im.resize((size[1], size[0]), Image.NEAREST), dtype=np.int32)
+
 def decode_segment(out,            # (1, C, H, W), (1, H, W, C) or (1, H, W) logits or a label map
                    labels=None,
                    meta:dict=None,
@@ -349,11 +389,11 @@ def decode_segment(out,            # (1, C, H, W), (1, H, W, C) or (1, H, W) log
     'Argmax a segmentation output into a label map plus the per-class pixel share.'
     a = np.asarray(out, np.float32)
     if a.ndim == 4: a = a[0]
-    if a.ndim == 3:
-        chw = a.shape[0] < a.shape[-1] and a.shape[0] < 512      # channels first if the first axis is small
-        m = a.argmax(0 if chw else -1)
-    else: m = a.astype(np.int64)
-    m = m.astype(np.int32)
+    m = a.argmax(0 if chan_first(a.shape, len(labels) if labels else None) else -1) if a.ndim == 3 else a
+    m = np.asarray(m, np.int32)
+    orig, pad = (meta or {}).get('orig'), (meta or {}).get('pad') or (0, 0)
+    # a stretched map covers the whole picture, so it can go back on it; a padded or cropped one cannot
+    if orig and not any(pad) and tuple(orig) != m.shape: m = resize_mask(m, orig)
     ids, cnt = np.unique(m, return_counts=True)
     tot = float(m.size)
     cls = [dict(label=label_at(labels, int(i)), index=int(i), frac=round(float(c/tot), 5))
@@ -380,17 +420,30 @@ def similarity(a, b) -> np.ndarray:
     'Cosine similarity between two sets of embeddings.'
     return l2norm(np.atleast_2d(a)) @ l2norm(np.atleast_2d(b)).T
 
+def pool_embed(out) -> np.ndarray:
+    'One unit-length vector from an embedding output; a token sequence or feature map is mean-pooled.'
+    a = np.asarray(out, np.float32)
+    if a.ndim > 1: a = a[0]                                        # the batch axis, always 1 here
+    if a.ndim == 3: a = a.mean((1, 2) if chan_first(a.shape) else (0, 1))
+    if a.ndim == 2: a = a.mean(0)                                  # 257 patch tokens of a ViT, say
+    return l2norm(a.reshape(-1))
+
 # %% ../nbs/01_vision.ipynb #f1e9e44f
-def read_labels(o) -> L:
-    'Read class names from a labels file, a JSON id/name map, or an iterable.'
-    import json
+def label_map(d:dict) -> L|None:
+    'Class names out of an `id2label`, an inverted `label2id`, or a bare index/name map.'
+    m = d.get('id2label') or {i: n for n, i in (d.get('label2id') or {}).items()} or d
+    try: return L(v for _, v in sorted((int(k), v) for k, v in m.items())) or None
+    except (TypeError, ValueError): return None          # a config.json that names no classes
+
+def read_labels(o) -> L|None:
+    'Read class names from a labels file, a `config.json` or its contents, or an iterable.'
     if o is None: return None
+    if isinstance(o, dict): return label_map(o)
     if isinstance(o, (str, Path)) and Path(o).exists():
+        if (sfx := Path(o).suffix.lower()) not in ('.txt', '.csv', '.json'): raise ValueError(
+            f'{Path(o).name} is a {sfx} file, not labels: pass a .txt, .csv, .json, or a list of names.')
         t = Path(o).read_text(encoding='utf-8', errors='replace').strip()
-        if t.startswith('{'):
-            d = json.loads(t)
-            d = d.get('id2label', d)
-            return L(v for _, v in sorted(((int(k), v) for k, v in d.items())))
+        if t.startswith('{'): return label_map(json.loads(t))
         if t.startswith('['): return L(json.loads(t))
         # a plain labels.txt, optionally "0 tench" or "0:tench" per line
         return L(_strip_idx(l) for l in t.split('\n') if l.strip())

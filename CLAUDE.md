@@ -3,6 +3,9 @@
 nbdev. The notebooks under `nbs/` are the source; `anya/*.py` is generated. Edit the notebook, run
 `nbdev_export`, never edit the `.py`. CI runs `nbdev_export` and fails on a diff.
 
+`.cursor/install.sh` builds `.venv` with every runtime. Activate it or prefix with `uv run`; nbdev
+3.3 names its commands with hyphens, so it is `nbdev-export` and `nbdev-test` there.
+
 ## Prose in notebooks
 
 Keep it short. The prose is there so a reader can see what the code does and what was chosen, not to
@@ -33,7 +36,9 @@ Every runtime is an optional extra. `anya/__init__.py` imports none of them, `co
 imports one lazily, and an ImportError must name the extra that fixes it (`pip install 'anya[onnx]'`).
 
 A runtime subclass supplies three things and inherits the rest: `_read_spec` (what the graph
-declares), `_infer` (run one batch), and the `Prep` it built from the signature. Preprocessing,
+declares), `_infer` (run one batch), and `_mk_prep` where the signature alone is not enough.
+`Model._finish` resolves the labels, the task and the `Prep` for all of them; `_own_labels` and
+`_guess_task` are the other two hooks, and only Core ML and LiteRT need any of them. Preprocessing,
 batching, decoding, error handling and file arrangement live in `core` and `vision`, once.
 
 Nothing in `anya/vision.py` may import a runtime. It is numpy and Pillow so that the decoders can be

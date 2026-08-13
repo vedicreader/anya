@@ -6,7 +6,8 @@ Docs: https://vedicreader.github.io/anya/tools.html.md"""
 
 # %% ../nbs/07_tools.ipynb #bdadac5a
 from __future__ import annotations
-import json, sys
+import inspect, json, sys
+from functools import wraps
 from pathlib import Path
 
 import numpy as np
@@ -17,7 +18,8 @@ from .tasks import as_model, bench, classify, detect, find_similar, segment, sor
 
 # %% auto #0
 __all__ = ['SAFE', 'WRITE', 'TOOLS', 'find_model', 'model_info', 'name_model', 'classify_image', 'detect_image', 'segment_image',
-           'classify_folder', 'sort_folder', 'similar_images', 'label_video', 'count_images', 'tool_names', 'main']
+           'classify_folder', 'sort_folder', 'similar_images', 'label_video', 'count_images', 'as_json', 'tool_names',
+           'tool', 'main']
 
 # %% ../nbs/07_tools.ipynb #11a367f4
 def find_model(query:str,           # what the model should do, in words
@@ -140,41 +142,52 @@ def count_images(folder:str,                # folder to look in
     return dict(folder=str(folder), n=len(xs), sample=[str(x) for x in xs[:10]])
 
 # %% ../nbs/07_tools.ipynb #75f6b158
+def as_json(f):
+    'Wrap a tool so a model gets `{"error": …}` back instead of a traceback.'
+    @wraps(f)
+    def g(*a, **kw):
+        try: return f(*a, **kw)
+        except Exception as e: return dict(tool=f.__name__, error=f'{type(e).__name__}: {e}')
+    return g
+
 SAFE = [find_model, model_info, count_images, classify_image, detect_image, segment_image,
         classify_folder, similar_images, label_video]
 WRITE = [sort_folder, name_model]
-TOOLS = SAFE + WRITE
+TOOLS = L(SAFE + WRITE).map(as_json)      # the plain functions still raise, which is what a notebook wants
 
 def tool_names() -> list:
     'The names a chat will see.'
     return [f.__name__ for f in TOOLS]
 
+def tool(name:str):
+    'The wrapped tool called `name`, or None.'
+    return next((f for f in TOOLS if f.__name__ == name), None)
+
 # %% ../nbs/07_tools.ipynb #57ff7733
 def _coerce(v:str, ann):
     'Command line strings into the types a tool declares.'
-    if ann is bool: return str(v).lower() not in ('0', 'false', 'no', '')
-    if ann is int: return int(v)
-    if ann is float: return float(v)
+    # `from __future__ import annotations` hands every annotation over as a string, so match the name
+    t = getattr(ann, '__name__', str(ann))
+    if t == 'bool': return str(v).lower() not in ('0', 'false', 'no', '')
+    if t == 'int': return int(v)
+    if t == 'float': return float(v)
     return v
 
 def main(argv=None) -> int:
     'Entry point for the `anya` command: `anya <tool> [positional…] [--flag=value…]`.'
-    import inspect
     argv = list(sys.argv[1:] if argv is None else argv)
-    by_name = {f.__name__: f for f in TOOLS}
     if not argv or argv[0] in ('-h', '--help', 'help'):
         print('anya <tool> [args] [--flag=value]\n\ntools:')
         for f in TOOLS: print(f'  {f.__name__:16s} {(f.__doc__ or "").splitlines()[0]}')
         return 0
     name, rest = argv[0], argv[1:]
-    if name not in by_name:
-        print(f'unknown tool {name!r}; one of: {", ".join(by_name)}', file=sys.stderr); return 2
-    f = by_name[name]
+    if (f := tool(name)) is None:
+        print(f'unknown tool {name!r}; one of: {", ".join(tool_names())}', file=sys.stderr); return 2
     ps = list(inspect.signature(f).parameters.values())
     pos = [a for a in rest if not a.startswith('--')]
     kw = dict(a[2:].split('=', 1) for a in rest if a.startswith('--') and '=' in a)
     kw |= {a[2:]: 'true' for a in rest if a.startswith('--') and '=' not in a}
     args = {p.name: _coerce(v, p.annotation) for p, v in zip(ps, pos)}
     args |= {k: _coerce(v, next((p.annotation for p in ps if p.name == k), str)) for k, v in kw.items()}
-    print(json.dumps(f(**args), indent=1, default=str))
-    return 0
+    print(json.dumps(out := f(**args), indent=1, default=str))
+    return 1 if out.get('error') else 0       # the tools never raise, so the exit code is the only signal

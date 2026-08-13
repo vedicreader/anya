@@ -11,8 +11,7 @@ from pathlib import Path
 import numpy as np
 from fastcore.all import AttrDict, L, store_attr
 
-from .core import Model, infer_task, model_file, prep_from_spec, with_hub_defaults
-from .vision import read_labels
+from .core import Model, model_file
 
 # %% auto #0
 __all__ = ['PROVIDER_ORDER', 'best_providers', 'mk_session', 'OnnxModel']
@@ -54,8 +53,10 @@ class OnnxModel(Model):
                  task:str=None,          # override the task guessed from the output shapes
                  labels=None,            # class names: a list, a labels.txt, or a config.json
                  norm=None,              # a NORMS name or an explicit (mean, std); the repo's config by default
-                 size:tuple=None,        # override the input size, for a graph with symbolic axes
+                 size:tuple=None,        # the input size, for a graph with symbolic spatial axes
                  resize:str=None,        # 'stretch', 'letterbox', 'center_crop'
+                 crop_pct:float=None,    # fraction of the short side 'center_crop' keeps
+                 resample:int=None,      # PIL resample filter, 2 bilinear or 3 bicubic
                  prep=None,              # a fully built Prep, overriding everything above
                  topk:int=5, conf:float=0.25, iou:float=0.45,
                  providers=None,         # execution providers, fastest-available by default
@@ -66,12 +67,7 @@ class OnnxModel(Model):
         self.model_path = str(model_file(model, model_path, file=file, revision=revision))
         self._sess = sess or mk_session(self.model_path, providers=providers, **kw)
         self._read_spec()
-        labels, norm, size, resize = with_hub_defaults(self.model_path, self.labels, norm, size, resize)
-        self.labels = read_labels(labels) or read_labels(_sidecar_labels(self.model_path))
-        self._task = task or infer_task([o.shape for o in self.outputs], self.labels,
-                                        [o.name for o in self.outputs])
-        self._prep = prep or prep_from_spec(self.inp.shape, self.inp.dtype, norm=norm or '01', size=size,
-                                            resize=resize, task=self._task)
+        self._finish(task, prep, norm=norm, size=size, resize=resize, crop_pct=crop_pct, resample=resample)
         self._max_bs = self._batch_limit(max_bs)
 
     def _read_spec(self):
@@ -96,11 +92,3 @@ class OnnxModel(Model):
     def _infer(self, x) -> list:
         if self._sess is None: raise RuntimeError('this model is closed')
         return self._sess.run(None, {self.inp.name: x.astype(self.inp.dtype, copy=False)})
-
-# %% ../nbs/02_onnx.ipynb #0ae07a87
-def _sidecar_labels(path):
-    'A labels file sitting next to the weights, which is how most exports ship class names.'
-    p = Path(path)
-    for c in (p.with_suffix('.txt'), p.parent/'labels.txt', p.parent/'classes.txt', p.parent/'config.json'):
-        if c.exists(): return c
-    return None

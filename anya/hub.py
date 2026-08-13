@@ -15,8 +15,8 @@ from fastcore.all import AttrDict, L
 from .core import infer_runtime, runtimes
 
 # %% auto #0
-__all__ = ['WEIGHT_EXTS', 'SIDECARS', 'PIPELINES', 'weight_files', 'file_runtime', 'dflt_prefer', 'score_file', 'pick_file',
-           'prep_kwargs', 'config_labels', 'repo_files', 'fetch', 'fetch_sidecars', 'resolve_model', 'model_config',
+__all__ = ['WEIGHT_EXTS', 'SIDECARS', 'LABEL_FILE', 'PIPELINES', 'weight_files', 'file_runtime', 'dflt_prefer', 'score_file',
+           'pick_file', 'prep_kwargs', 'repo_files', 'fetch', 'fetch_sidecars', 'resolve_model', 'model_config',
            'find_models', 'web_models', 'registry_path', 'aliases', 'alias', 'resolve_alias']
 
 # %% ../nbs/05_hub.ipynb #5468ec5e
@@ -58,29 +58,32 @@ def pick_file(files,            # every path in the repo
     return min(c, key=lambda f: score_file(f, prefer), default=None)
 
 # %% ../nbs/05_hub.ipynb #41dea228
+def _hw(sz) -> tuple|None:
+    'A `size` field as `(h, w)`: it is an int, a height/width pair, or a shortest edge.'
+    if isinstance(sz, int): return (sz, sz)
+    if not isinstance(sz, dict): return None
+    h, w = sz.get('height'), sz.get('width')
+    if h and w: return (int(h), int(w))
+    return (int(s), int(s)) if (s := sz.get('shortest_edge')) else None
+
 def prep_kwargs(cfg:dict) -> dict:
-    'Turn a `preprocessor_config.json` into `size=` / `norm=` / `resize=` for a `Model`.'
+    'Turn a `preprocessor_config.json` into `size=` / `norm=` / `resize=` / `crop_pct=` for a `Model`.'
     if not cfg: return {}
-    out = {}
-    sz = cfg.get('size') or cfg.get('crop_size') or {}
-    if isinstance(sz, int): out['size'] = (sz, sz)
-    elif isinstance(sz, dict):
-        h, w = sz.get('height'), sz.get('width')
-        if h and w: out['size'] = (int(h), int(w))
-        elif (s := sz.get('shortest_edge')): out['size'] = (int(s), int(s))
+    out, size, crop = {}, _hw(cfg.get('size')), _hw(cfg.get('crop_size'))
+    if cfg.get('do_center_crop'): out['resize'] = 'center_crop'
+    # size 256 with crop_size 224 means resize the short side to 256, then crop 224 out of the middle.
+    # SpotLab/YOLOv8Detection asks for a 640 crop out of a 256 short side, which is not a crop.
+    if crop and size and crop[0] < size[0]: out['crop_pct'] = round(crop[0]/size[0], 4)
+    if (sz := (crop if cfg.get('do_center_crop') else None) or size or crop): out['size'] = sz
     m, s = cfg.get('image_mean'), cfg.get('image_std')
     if m and s: out['norm'] = (tuple(float(x) for x in m), tuple(float(x) for x in s))
-    if cfg.get('do_center_crop'): out['resize'] = 'center_crop'
+    # bicubic against bilinear moved top-1 on one of five photos, so the filter is worth carrying
+    if isinstance(cfg.get('resample'), int): out['resample'] = cfg['resample']
     return out
 
-def config_labels(cfg:dict) -> L|None:
-    'Class names from a `config.json`, in index order.'
-    d = (cfg or {}).get('id2label')
-    if not d: return None
-    return L(v for _, v in sorted((int(k), v) for k, v in d.items()))
-
 # %% ../nbs/05_hub.ipynb #d73a74f2
-SIDECARS = ('config.json', 'preprocessor_config.json', 'labels.txt', 'classes.txt', 'labelmap.txt')
+SIDECARS = ('config.json', 'preprocessor_config.json')
+LABEL_FILE = r'(label|class)[\w.-]*\.(txt|csv)$'      # labels.txt, labels_yamnet.txt, audioset_labels.txt
 
 def _api(token=None):
     try: from huggingface_hub import HfApi
@@ -101,13 +104,13 @@ def fetch(repo_id:str,          # a Hub repo id
     from huggingface_hub import hf_hub_download
     return Path(hf_hub_download(repo_id, filename, revision=revision, token=token))
 
-def fetch_sidecars(repo_id:str, files, dest:Path, revision:str=None, token=None) -> dict:
-    'Download the config and label files that sit beside the weights, ignoring any that 404.'
+def fetch_sidecars(repo_id:str, files, revision:str=None, token=None) -> dict:
+    'Download the configs and label files that sit beside the weights, ignoring any that 404.'
     out = {}
-    for n in SIDECARS:
-        hit = next((f for f in files if str(f).rsplit('/', 1)[-1] == n), None)
-        if not hit: continue
-        try: out[n] = fetch(repo_id, hit, revision=revision, token=token)
+    for f in files:
+        n = str(f).rsplit('/', 1)[-1]
+        if n in out or not (n in SIDECARS or re.search(LABEL_FILE, n, re.I)): continue
+        try: out[n] = fetch(repo_id, f, revision=revision, token=token)
         except Exception: pass          # a listed file can still be gated or moved
     return out
 
@@ -128,7 +131,7 @@ def resolve_model(repo_id:str,        # a Hub repo id, or a local path
         f'{repo_id} ships no file anya can run (looked for {", ".join(WEIGHT_EXTS)}). '
         f'It has: {", ".join(map(str, files[:12]))}')
     path = fetch(repo_id, pick, revision=revision, token=token)
-    fetch_sidecars(repo_id, files, path.parent, revision=revision, token=token)
+    fetch_sidecars(repo_id, files, revision=revision, token=token)
     return (file_runtime(pick), str(path))
 
 def model_config(path) -> AttrDict:
@@ -152,13 +155,18 @@ def find_models(query:str,          # what the model should do, in words
                 n:int=10,
                 token=None
                ) -> L:
-    'Search the Hub for models anya can run, most downloaded first.'
-    kw = dict(search=query, sort='downloads', limit=max(n*3, 30))
+    'Search the Hub for models anya can run: the whole phrase first, then each word, most downloaded first.'
+    kw = dict(sort='downloads', limit=max(n*3, 30))
     if task: kw['pipeline_tag'] = PIPELINES.get(task, task)
     if runtime: kw['filter'] = {'onnx': 'onnx', 'litert': 'tflite', 'coreml': 'coreml'}[runtime]
-    ms = L(_api(token).list_models(**kw))
-    return ms.map(lambda m: AttrDict(id=m.id, downloads=getattr(m, 'downloads', 0),
-                                     task=getattr(m, 'pipeline_tag', None), likes=getattr(m, 'likes', 0)))[:n]
+    # the Hub matches `search` against the repo id, so 'bird classifier' finds none of what 'bird' finds
+    found = {}
+    for q in dict.fromkeys([query, *query.split()]):
+        for m in _api(token).list_models(search=q, **kw):
+            found.setdefault(m.id, AttrDict(id=m.id, downloads=getattr(m, 'downloads', 0),
+                                            task=getattr(m, 'pipeline_tag', None), likes=getattr(m, 'likes', 0)))
+        if len(found) >= n: break
+    return L(found.values())[:n]        # in search order: 'bird' outranks the more downloaded 'classifier'
 
 def web_models(query:str, n:int=5) -> L:
     'Ask the open web for HuggingFace models, for when the Hub API is not reachable.'

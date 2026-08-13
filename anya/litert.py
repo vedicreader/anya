@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 from fastcore.all import AttrDict, L
 
-from .core import Model, infer_task, model_file, prep_from_spec, with_hub_defaults
+from .core import Model, model_file, sidecar_labels
 from .vision import read_labels
 
 # %% auto #0
@@ -62,6 +62,8 @@ class LitertModel(Model):
                  norm=None,              # None reads the pixel range off the quantisation; else a NORMS name
                  size:tuple=None,
                  resize:str=None,
+                 crop_pct:float=None,    # fraction of the short side 'center_crop' keeps
+                 resample:int=None,      # PIL resample filter, 2 bilinear or 3 bicubic
                  prep=None,
                  topk:int=5, conf:float=0.25, iou:float=0.45,
                  threads:int=None,       # interpreter threads; LiteRT's default is all cores
@@ -72,14 +74,16 @@ class LitertModel(Model):
         self.model_path = str(model_file(model, model_path, file=file, revision=revision))
         self._sess = interp or self._mk_interp(threads, **kw)
         self._read_spec()
-        labels, norm, size, resize = with_hub_defaults(self.model_path, self.labels, norm, size, resize)
-        self.labels = read_labels(labels) or tflite_labels(self.model_path)
-        self._task = task or infer_task([o.shape for o in self.outputs], self.labels,
-                                        [o.name for o in self.outputs])
-        if norm in (None, 'auto'): norm = norm_from_quant(self.inp.quant, self.inp.dtype) or '01'
-        self._prep = prep or prep_from_spec(self.inp.shape, self.inp.dtype, norm=norm, size=size,
-                                            resize=resize, task=self._task, quant=self.inp.quant)
+        self._finish(task, prep, size=size, resize=resize, crop_pct=crop_pct, resample=resample,
+                     norm=None if norm == 'auto' else norm)
         self._max_bs = self._resize_batch(max_bs)
+
+    def _own_labels(self): return tflite_labels(self.model_path) or sidecar_labels(self.model_path)
+
+    def _mk_prep(self, **pk):
+        'The input quantisation also says what pixel range the model was trained on.'
+        pk.setdefault('norm', norm_from_quant(self.inp.quant, self.inp.dtype) or '01')
+        return super()._mk_prep(quant=self.inp.quant, **pk)
 
     def _mk_interp(self, threads=None, **kw):
         try: from ai_edge_litert.interpreter import Interpreter

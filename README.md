@@ -55,6 +55,30 @@ Nothing was passed but the path. The class names came out of the metadata in
 the `.tflite` file, the input size and the channel order came out of the
 graph, and the task came from the shape of the output.
 
+## The same call, real weights
+
+Everything above runs offline against a toy graph. Below are real repos, and
+the answers are the ones `evals/e2e.py` asserts on: eight repos over five
+photographs and three generated sounds, with two detector families checked
+against each other's boxes and the preprocessing against timm's own eval
+transform, which it matches to `1e-6`.
+
+``` python
+from anya import detect, segment
+
+classify('photos/', 'onnx-community/mobilenetv4_conv_small.e2400_r224_in1k', topk=1).counts()
+# {'tabby, tabby cat': 1, 'brown bear, bruin, Ursus arctos': 1, 'minibus': 1, ...}
+
+detect('street.jpg', 'webnn/yolov8n', conf=0.5)
+# person 0.896 [671.36, 384.75, 810.0, 880.03] … bus 0.845 [31.0, 231.0, 801.0, 778.0]
+
+segment('street.jpg', 'Xenova/segformer-b0-finetuned-ade-512-512').classes[:3]
+# [{'label': 'building', 'frac': 0.291}, {'label': 'sidewalk', 'frac': 0.283}, {'label': 'bus', …}]
+
+Model('thelou1s/yamnet', file='lite-model_yamnet_classification_tflite_1.tflite')('sine440.wav')
+# Sine wave (0.996)
+```
+
 ## Pick a runtime
 
 `Model(name)` routes on the name; `model.runtime` says which one you got.

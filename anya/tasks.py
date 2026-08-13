@@ -15,8 +15,8 @@ from .core import Model, Pred, Preds, arrange, items, load_model
 from .vision import similarity
 
 # %% auto #0
-__all__ = ['as_model', 'run', 'classify', 'detect', 'segment', 'embed', 'sort_images', 'summarize', 'find_similar',
-           'index_folder', 'bench']
+__all__ = ['CALL_KW', 'as_model', 'split_kw', 'run', 'classify', 'detect', 'segment', 'embed', 'sort_images', 'summarize',
+           'find_similar', 'index_folder', 'bench']
 
 # %% ../nbs/06_tasks.ipynb #c28704e3
 def as_model(model, **kw) -> Model:
@@ -27,13 +27,19 @@ def as_model(model, **kw) -> Model:
         'anya.hub.find_models("what it should do") searches for one.')
     return load_model(model, **kw)
 
+CALL_KW = ('topk', 'conf', 'iou', 'bs', 'on_error', 'types', 'exclude')
+
+def split_kw(kw:dict) -> tuple:
+    'Split one `**kw` into `(call keywords, model keywords)`; a `Model` constructor chokes on `exclude=`.'
+    return {k: kw.pop(k) for k in CALL_KW if k in kw}, kw
+
 def run(x,                  # a file, a folder, a glob, a list, or pixels
         model,              # a path, repo id, alias, or Model
         task:str=None,      # override the task the model's outputs imply
         **kw                # model keywords (labels=, size=, norm=…) and call keywords (topk=, conf=…)
        ):
     'Run any model over anything: one item gives a `Pred`, a folder gives `Preds`.'
-    call = {k: kw.pop(k) for k in ('topk', 'conf', 'iou', 'bs', 'on_error', 'types', 'exclude') if k in kw}
+    call, kw = split_kw(kw)
     m = as_model(model, task=task, **kw)
     if isinstance(x, (str, Path)) and Path(str(x)).suffix.lower() in {'.mp4','.mov','.avi','.mkv','.webm','.m4v'}:
         return m.predict_video(x, **{k: v for k, v in call.items() if k in ('topk','conf','iou')})
@@ -85,12 +91,13 @@ def find_similar(query,                  # one picture: a path or pixels
                  folder,                 # where to look
                  model,                  # an embedding model
                  n:int=10,               # how many to return
-                 **kw
+                 **kw                    # model keywords, plus `exclude=` for a sorted tree under `folder`
                 ) -> L:
     'Rank the pictures in `folder` by cosine similarity to `query`.'
+    call, kw = split_kw(kw)
     m = as_model(model, task='embed', **kw)
-    q, ps = m.predict(query), m.predict_all(folder)
-    ok = ps.ok
+    ok = m.predict_all(folder, **call).ok
+    q = m.predict(query)
     if not len(ok): return L()
     sims = similarity(q.vec, np.stack([p.vec for p in ok]))[0]
     order = np.argsort(-sims)[:n]
@@ -98,8 +105,9 @@ def find_similar(query,                  # one picture: a path or pixels
 
 def index_folder(folder, model, **kw) -> AttrDict:
     'Embed every picture in `folder` once, for repeated comparisons.'
+    call, kw = split_kw(kw)
     m = as_model(model, task='embed', **kw)
-    ps = m.predict_all(folder).ok
+    ps = m.predict_all(folder, **call).ok
     return AttrDict(srcs=L(p['src'] for p in ps), vecs=np.stack([p.vec for p in ps]) if len(ps) else np.zeros((0, 1)),
                     model=m.name, n=len(ps))
 

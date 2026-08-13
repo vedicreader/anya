@@ -6,22 +6,23 @@ Docs: https://vedicreader.github.io/anya/core.html.md"""
 
 # %% ../nbs/00_core.ipynb #1da02f56
 from __future__ import annotations
-import json, os, shutil, time
+import json, os, shutil
+from collections import Counter
 from importlib import import_module
 from pathlib import Path
 
 import numpy as np
-from fastcore.all import AttrDict, L, Path as FPath, store_attr
+from fastcore.all import AttrDict, L, store_attr
 
 from .vision import (MEDIA_EXTS, IMG_EXTS, AUD_EXTS, VID_EXTS, AudioPrep, Prep, batch, decode_classify,
-                         decode_detect_auto, decode_segment, l2norm, load_audio, load_image, read_labels,
+                         decode_detect_auto, decode_segment, load_audio, load_image, pool_embed, read_labels,
                          video_frames)
 
 # %% auto #0
 __all__ = ['runtimes', 'TASKS', 'EMBED_DIMS', 'NORMS', 'CHANNELS', 'is_loaded', 'item_src', 'items', 'Pred', 'Preds',
-           'split_runtime', 'infer_runtime', 'resolve_runtime', 'get_runtime', 'dims', 'infer_task', 'prep_from_spec',
-           'Model', 'model_file', 'with_hub_defaults', 'load_model', 'loaded_models', 'clear_models', 'safe_name',
-           'arrange']
+           'split_runtime', 'infer_runtime', 'resolve_runtime', 'get_runtime', 'dims', 'nobatch', 'infer_task',
+           'chan_axis', 'prep_from_spec', 'Model', 'model_file', 'sidecar_labels', 'with_hub_defaults', 'load_model',
+           'loaded_models', 'clear_models', 'safe_name', 'arrange']
 
 # %% ../nbs/00_core.ipynb #c3c940e5
 def is_loaded(o) -> bool:
@@ -109,9 +110,7 @@ class Preds(L):
 
     def counts(self) -> dict:
         'How many items got each label, most common first.'
-        c = {}
-        for l in self.ok.labels: c[l] = c.get(l, 0) + 1
-        return dict(sorted(c.items(), key=lambda t: -t[1]))
+        return dict(Counter(self.ok.labels).most_common())
 
     def above(self, score:float) -> Preds:
         'Only the predictions the model was at least `score` confident about.'
@@ -191,29 +190,38 @@ def dims(shape) -> list:
     'The concrete dimensions of a declared shape; symbolic axes (a named batch) drop out.'
     return [d for d in (d if isinstance(d, int) and d > 0 else None for d in shape) if d]
 
+def nobatch(shape) -> list:
+    'A declared shape without its batch axis, which is a 1 or a name.'
+    s = list(shape)
+    return s[1:] if len(s) > 1 and (s[0] == 1 or not isinstance(s[0], int)) else s
+
 def infer_task(shapes,          # output shapes the model declares, in order
                labels=None,     # class names, when the model or the caller supplied them
                names=None       # output tensor names, which often say it outright
               ) -> str:
-    'Guess the task from output shapes: four heads is a detector, a wide map is a segmenter, and so on.'
+    'Guess the task from output shapes: four heads is a detector, a grid of classes is a segmenter.'
     ns = ' '.join(str(n).lower() for n in (names or []))
-    for k, t in (('box', 'detect'), ('mask', 'segment'), ('segment', 'segment'), ('embed', 'embed'),
-                 ('feature', 'embed'), ('logit', 'classify')):
+    # no 'logit': it is what a classifier and a segmenter both call their output, so it says nothing
+    for k, t in (('box', 'detect'), ('mask', 'segment'), ('segment', 'segment'),
+                 ('embed', 'embed'), ('feature', 'embed'), ('hidden', 'embed')):
         if k in ns: return t
-    if len(list(shapes)) >= 3: return 'detect'             # boxes / classes / scores / count
-    s = dims(list(shapes)[0]) if len(list(shapes)) else []
-    s = s[1:] if len(s) > 1 and s[0] == 1 else s           # drop a batch axis of 1
-    if len(s) >= 3: return 'segment'                       # C,H,W or H,W,C
-    if len(s) == 2:
-        a, b = sorted(s)
+    shapes = L(shapes)
+    s = nobatch(shapes[0]) if len(shapes) else []
+    if len(shapes) >= 3:
+        if list(shapes[0])[-1] == 4: return 'detect'        # boxes / classes / scores / count
+        if len(s) <= 1: return 'classify'                   # yamnet: scores, embeddings, spectrogram
+        raise ValueError(f'{len(shapes)} outputs of shape {[list(x) for x in shapes[:4]]}: anya cannot tell '
+                         'what this model does. Pass task= to say, or a prep= and read the outputs yourself.')
+    if len(s) >= 3: return 'segment'                       # a class per pixel, C,H,W or H,W,C
+    d = dims(s)
+    if len(d) == 2:
+        a, b = sorted(d)
         return 'detect' if b >= 100 and a <= 512 else 'classify'
-    if len(s) == 1:
-        if labels is not None: return 'classify'
-        return 'embed' if s[0] in EMBED_DIMS else 'classify'
+    if len(d) == 1 and labels is None and d[0] in EMBED_DIMS: return 'embed'
     return 'classify'
 
 # %% ../nbs/00_core.ipynb #4307c356
-from .vision import IMAGENET
+from .vision import BILINEAR, IMAGENET
 
 NORMS = {'01':       ((0., 0., 0.), (1., 1., 1.)),        # pixels in 0..1
          'imagenet': IMAGENET,                            # torchvision and timm exports
@@ -222,11 +230,21 @@ NORMS = {'01':       ((0., 0., 0.), (1., 1., 1.)),        # pixels in 0..1
 
 CHANNELS = (1, 3, 4)
 
+def chan_axis(shape) -> int:
+    'Which axis of an image input holds the channels: 1 for NCHW, -1 for NHWC.'
+    # optimum exports every axis symbolic and names them, so the name is all there is to read
+    named = lambda i: (nm := str(shape[i]).lower()) == 'c' or 'chan' in nm
+    if named(1): return 1
+    if named(-1): return -1
+    return 1 if (shape[1] in CHANNELS and shape[-1] not in CHANNELS) else -1
+
 def prep_from_spec(shape,                 # the input tensor shape the model declares
                    dtype:str='float32',   # its dtype
                    norm='01',             # a NORMS name, or an explicit (mean, std)
-                   size:tuple=None,       # override the size when the shape is symbolic
+                   size:tuple=None,       # size for the axes the shape leaves symbolic
                    resize:str=None,       # 'stretch', 'letterbox', 'center_crop'
+                   crop_pct:float=None,   # fraction of the short side kept by 'center_crop'
+                   resample:int=None,     # PIL resample filter; bilinear unless the config says otherwise
                    quant:tuple=None,      # (scale, zero_point) for a quantised input
                    task:str=None,         # only used to pick a default size and resize mode
                    layout:str=None,       # override the channel-axis guess
@@ -239,14 +257,16 @@ def prep_from_spec(shape,                 # the input tensor shape the model dec
         return AudioPrep(samples=(n[-1] if n and n[-1] > 16 else None), dtype=dtype,
                          layout='nt' if len(s) == 2 else 't')
     d = [x if isinstance(x, int) and x > 0 else None for x in s]
-    lay = layout or ('nchw' if (d[1] in CHANNELS and d[-1] not in CHANNELS) else 'nhwc')
+    lay = layout or ('nchw' if chan_axis(s) == 1 else 'nhwc')
     hw = (d[2], d[3]) if lay == 'nchw' else (d[1], d[2])
     dflt = 640 if task == 'detect' else 224
-    size = tuple(size) if size else tuple(x or dflt for x in hw)
+    # a size the graph states outright wins: it is the only one the graph will accept
+    size = tuple(a or b or dflt for a, b in zip(hw, tuple(size) if size else (None, None)))
     mean, std = NORMS[norm] if isinstance(norm, str) else norm
     scale = 1.0 if norm == 'none' else 1/255
-    return Prep(size=size, layout=lay, dtype=dtype, scale=scale, mean=mean, std=std,
-                resize=resize or ('letterbox' if task == 'detect' else 'stretch'), quant=quant, bgr=bgr)
+    return Prep(size=size, layout=lay, dtype=dtype, scale=scale, mean=mean, std=std, crop_pct=crop_pct,
+                resample=resample or BILINEAR, quant=quant, bgr=bgr,
+                resize=resize or ('letterbox' if task == 'detect' else 'stretch'))
 
 # %% ../nbs/00_core.ipynb #f7d2571c
 class Model:
@@ -265,13 +285,36 @@ class Model:
 
     def _setup(self, model=None, model_path=None, task=None, labels=None, prep=None,
                topk:int=5, conf:float=0.25, iou:float=0.45, meta:dict=None):
-        'Shared init tail: store the knobs every task shares and normalise the labels.'
+        'Init head: store the knobs every task shares, before there is a graph to read.'
         _, model = split_runtime(model)
         store_attr('model,model_path,topk,conf,iou', self)
         self.labels = read_labels(labels)
         self.meta = dict(meta or {})
         self._task, self._prep = task, prep
         return model
+
+    def _finish(self,
+                task:str=None,   # the caller's override, if any
+                prep=None,       # a fully built Prep, overriding everything else
+                **pk             # what the caller said about preprocessing; None means unset
+               ):
+        'Init tail: the labels, the task and the `Prep`, once `_read_spec` has run.'
+        labels, pk = with_hub_defaults(self.model_path, self.labels, **pk)
+        self.labels = read_labels(labels) or read_labels(self._own_labels())
+        self._task = task or self._guess_task()
+        self._prep = prep or self._mk_prep(**pk)
+
+    def _own_labels(self):
+        'Class names this runtime can find for itself; by default a labels file beside the weights.'
+        return sidecar_labels(self.model_path)
+
+    def _guess_task(self) -> str:
+        'The task this model\'s output signature implies.'
+        return infer_task(self.outputs.attrgot('shape'), self.labels, self.outputs.attrgot('name'))
+
+    def _mk_prep(self, **pk):
+        'The `Prep` this model\'s input signature calls for.'
+        return prep_from_spec(self.inp.shape, self.inp.dtype, task=self._task, **pk)
 
     @property
     def runtime(self) -> str: return self._runtime
@@ -308,7 +351,7 @@ class Model:
         if t == 'detect': return Pred(d, objects=decode_detect_auto(outs, self.labels, meta=meta,
                                                                    conf=kw.get('conf', self.conf), iou=kw.get('iou', self.iou)))
         if t == 'segment': return Pred(d, **decode_segment(o0, self.labels, meta=meta))
-        if t == 'embed': return Pred(d, vec=l2norm(o0.reshape(-1)))
+        if t == 'embed': return Pred(d, vec=pool_embed(o0))
         return Pred(d, raw=[np.asarray(o) for o in outs])
 
     def predict(self, o, **kw) -> Pred:
@@ -395,17 +438,26 @@ def model_file(model=None,       # a path or a hub repo id
     return Path(resolve_model(str(model), file=file, revision=revision)[1])
 
 # %% ../nbs/00_core.ipynb #a5ad0bf0
-def with_hub_defaults(path,          # the local weights file
-                      labels=None, norm=None, size=None, resize=None
+def sidecar_labels(path) -> Path|None:
+    'A labels file beside the weights or up at the repo root, which is how most exports ship class names.'
+    p = Path(path)
+    if (c := p.with_suffix('.txt')).exists(): return c
+    named = lambda f: any(w in f.name.lower() for w in ('label', 'class'))    # labels_yamnet.txt, coco_labels.txt
+    for d in list(p.parents)[:3]:            # the hub cache mirrors the repo, so a root file is a level up
+        if (hits := L(d.glob('*.txt')).filter(named).sorted()): return hits[0]
+        if (c := d/'config.json').exists(): return c
+    return None
+
+def with_hub_defaults(path,           # the local weights file
+                      labels=None,    # class names, if the caller has them
+                      **kw            # anything `prep_from_spec` takes; None means unset
                      ) -> tuple:
-    'Fill whatever the caller left unset from the config files cached beside `path`.'
-    try: from anya.hub import config_labels, model_config, prep_kwargs
-    except ImportError: return labels, norm, size, resize
+    'Returns `(labels, prep keywords)`, filling whatever the caller left unset from the configs beside `path`.'
+    kw = {k: v for k, v in kw.items() if v is not None}
+    try: from anya.hub import model_config, prep_kwargs
+    except ImportError: return labels, kw
     c = model_config(path)
-    pk = prep_kwargs(c.preprocessor)
-    return (labels if labels is not None else config_labels(c.config),
-            norm if norm is not None else pk.get('norm'),
-            size or pk.get('size'), resize or pk.get('resize'))
+    return (labels if labels is not None else read_labels(c.config), {**prep_kwargs(c.preprocessor), **kw})
 
 # %% ../nbs/00_core.ipynb #88e792fa
 _models = {}
