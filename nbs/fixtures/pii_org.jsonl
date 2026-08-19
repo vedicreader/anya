@@ -1,0 +1,240 @@
+{"text": "Call +44 20 7946 5242 before the site closes.", "spans": [[5, 21, "phone"]], "label": "pii", "group": "phone:0"}
+{"text": "Figure 4 Way of working, as adopted by the board.", "spans": [], "label": "clean", "group": "clean:7"}
+{"text": "The door was held open for BDG56930 by a contractor.", "spans": [[27, 35, "badge"]], "label": "pii", "group": "badge:2"}
+{"text": "The overspend sits in CC-46941.", "spans": [], "label": "clean", "group": "neg_cost:2"}
+{"text": "Conformity with EN 60601-1 was assessed in full.", "spans": [], "label": "clean", "group": "clean:1"}
+{"text": "Call +44 20 7946 9086 before the site closes.", "spans": [[5, 21, "phone"]], "label": "pii", "group": "phone:0"}
+{"text": "SSN 334-91-1032 is on file with payroll.", "spans": [[4, 15, "ssn"]], "label": "pii", "group": "ssn:0"}
+{"text": "Badge B-28677 was reported lost in March.", "spans": [[6, 13, "badge"]], "label": "pii", "group": "badge:1"}
+{"text": "Call +44 20 7946 2318 before the site closes.", "spans": [[5, 21, "phone"]], "label": "pii", "group": "phone:0"}
+{"text": "Figure 4 Way of working, as adopted by the board.", "spans": [], "label": "clean", "group": "clean:7"}
+{"text": "Timesheet for EMP-674033 was approved late.", "spans": [[14, 24, "emp_id"]], "label": "pii", "group": "emp_id:2"}
+{"text": "Notes against PT-2022-22010 were amended twice.", "spans": [[14, 27, "patient_ref"]], "label": "pii", "group": "patient_ref:1"}
+{"text": "INV-2021-41733 was raised against the wrong entity.", "spans": [], "label": "clean", "group": "neg_invoice:1"}
+{"text": "Stock of 0123098912 runs out in August.", "spans": [], "label": "clean", "group": "neg_part:2"}
+{"text": "The change was pushed by g.okonkwo on Friday.", "spans": [[25, 34, "staff_login"]], "label": "pii", "group": "staff_login:1"}
+{"text": "The reviewer of record is EMP-734917 and the decision stands.", "spans": [[26, 36, "emp_id"]], "label": "pii", "group": "emp_id:0"}
+{"text": "Notes against PT/2022/37600 were amended twice.", "spans": [[14, 27, "patient_ref"]], "label": "pii", "group": "patient_ref:1"}
+{"text": "Send the file to tom.doe@example.com before noon.", "spans": [[17, 36, "email"]], "label": "pii", "group": "email:0"}
+{"text": "Send the file to jane.ross@example.com before noon.", "spans": [[17, 38, "email"]], "label": "pii", "group": "email:0"}
+{"text": "The change was pushed by k.halvorsen on Friday.", "spans": [[25, 36, "staff_login"]], "label": "pii", "group": "staff_login:1"}
+{"text": "The reviewer of record is EMP/309039 and the decision stands.", "spans": [[26, 36, "emp_id"]], "label": "pii", "group": "emp_id:0"}
+{"text": "Discharge summary for PT/2024/98164 is outstanding.", "spans": [[22, 35, "patient_ref"]], "label": "pii", "group": "patient_ref:3"}
+{"text": "Entry logged on badge B-31227 at the loading bay.", "spans": [[22, 29, "badge"]], "label": "pii", "group": "badge:0"}
+{"text": "Counsel instructed on CASE-2023-8246 has withdrawn.", "spans": [[22, 36, "case_ref"]], "label": "pii", "group": "case_ref:2"}
+{"text": "ORD/814374 was cancelled before picking.", "spans": [], "label": "clean", "group": "neg_order:1"}
+{"text": "Access was granted to EMP-101598 on the same day.", "spans": [[22, 32, "emp_id"]], "label": "pii", "group": "emp_id:3"}
+{"text": "The bill of materials lists 7890075472 twice.", "spans": [], "label": "clean", "group": "neg_part:1"}
+{"text": "Badge B-81901 no longer opens the third floor.", "spans": [[6, 13, "badge"]], "label": "pii", "group": "badge:3"}
+{"text": "Conformity with EN 60601-1 was assessed in full.", "spans": [], "label": "clean", "group": "clean:1"}
+{"text": "Payment taken on card 4650300891319344 at the till.", "spans": [[22, 38, "card"]], "label": "pii", "group": "card:0"}
+{"text": "Payment taken on card 2610471428512405 at the till.", "spans": [[22, 38, "card"]], "label": "pii", "group": "card:0"}
+{"text": "The scan booked under PT-2021-84379 did not go ahead.", "spans": [[22, 35, "patient_ref"]], "label": "pii", "group": "patient_ref:2"}
+{"text": "The committee deferred the decision to the next quarter.", "spans": [], "label": "clean", "group": "clean:0"}
+{"text": "The number on the account is +44 20 7946 8134.", "spans": [[29, 45, "phone"]], "label": "pii", "group": "phone:1"}
+{"text": "The change was pushed by g.patel on Friday.", "spans": [[25, 32, "staff_login"]], "label": "pii", "group": "staff_login:1"}
+{"text": "Escalated by EMP-384555 after the second call.", "spans": [[13, 23, "emp_id"]], "label": "pii", "group": "emp_id:1"}
+{"text": "The scan booked under PT/2021/91335 did not go ahead.", "spans": [[22, 35, "patient_ref"]], "label": "pii", "group": "patient_ref:2"}
+{"text": "The door was held open for B-29584 by a contractor.", "spans": [[27, 34, "badge"]], "label": "pii", "group": "badge:2"}
+{"text": "Attendance was down on the same week last year.", "spans": [], "label": "clean", "group": "clean:4"}
+{"text": "The change was pushed by okonkwo71 on Friday.", "spans": [[25, 34, "staff_login"]], "label": "pii", "group": "staff_login:1"}
+{"text": "Correspondence goes to arun.doe@example.com from now on.", "spans": [[23, 43, "email"]], "label": "pii", "group": "email:1"}
+{"text": "The scan booked under PT-2022-24241 did not go ahead.", "spans": [[22, 35, "patient_ref"]], "label": "pii", "group": "patient_ref:2"}
+{"text": "Badge BDG54181 no longer opens the third floor.", "spans": [[6, 14, "badge"]], "label": "pii", "group": "badge:3"}
+{"text": "SSN 491-15-8155 is on file with payroll.", "spans": [[4, 15, "ssn"]], "label": "pii", "group": "ssn:0"}
+{"text": "ASSET-30403 is booked to the Bristol site.", "spans": [], "label": "clean", "group": "neg_asset:1"}
+{"text": "Call +44 20 7946 6873 before the site closes.", "spans": [[5, 21, "phone"]], "label": "pii", "group": "phone:0"}
+{"text": "Referral PT-2025-98725 was triaged on arrival.", "spans": [[9, 22, "patient_ref"]], "label": "pii", "group": "patient_ref:0"}
+{"text": "Badge BDG43617 no longer opens the third floor.", "spans": [[6, 14, "badge"]], "label": "pii", "group": "badge:3"}
+{"text": "Case CASE-2023-3397 was settled without a hearing.", "spans": [[5, 19, "case_ref"]], "label": "pii", "group": "case_ref:0"}
+{"text": "The ticket was reassigned to nakamura79 overnight.", "spans": [[29, 39, "staff_login"]], "label": "pii", "group": "staff_login:3"}
+{"text": "Correspondence goes to arun.okonkwo@example.com from now on.", "spans": [[23, 47, "email"]], "label": "pii", "group": "email:1"}
+{"text": "The credit note reverses INV/2021/99039 in full.", "spans": [], "label": "clean", "group": "neg_invoice:2"}
+{"text": "Entry logged on badge BDG12003 at the loading bay.", "spans": [[22, 30, "badge"]], "label": "pii", "group": "badge:0"}
+{"text": "The number on the account is +44 20 7946 3632.", "spans": [[29, 45, "phone"]], "label": "pii", "group": "phone:1"}
+{"text": "The number on the account is +44 20 7946 9273.", "spans": [[29, 45, "phone"]], "label": "pii", "group": "phone:1"}
+{"text": "The reviewer of record is EMP-811533 and the decision stands.", "spans": [[26, 36, "emp_id"]], "label": "pii", "group": "emp_id:0"}
+{"text": "Correspondence goes to arun.ross@example.com from now on.", "spans": [[23, 44, "email"]], "label": "pii", "group": "email:1"}
+{"text": "The replacement unit ships as serial 4993002489451747.", "spans": [], "label": "clean", "group": "neg_serial:1"}
+{"text": "Case CASE 2022/3308 was settled without a hearing.", "spans": [[5, 19, "case_ref"]], "label": "pii", "group": "case_ref:0"}
+{"text": "Serial 6560976701720096 was returned under warranty.", "spans": [], "label": "clean", "group": "neg_serial:2"}
+{"text": "The number on the account is +44 20 7946 2234.", "spans": [[29, 45, "phone"]], "label": "pii", "group": "phone:1"}
+{"text": "The committee deferred the decision to the next quarter.", "spans": [], "label": "clean", "group": "clean:0"}
+{"text": "The pallet against ORD-798887 arrived short.", "spans": [], "label": "clean", "group": "neg_order:2"}
+{"text": "The lease on ASSET-20294 ends in June.", "spans": [], "label": "clean", "group": "neg_asset:2"}
+{"text": "Mailbox delegation was given to patel91.", "spans": [[32, 39, "staff_login"]], "label": "pii", "group": "staff_login:2"}
+{"text": "The reviewer of record is EMP-659129 and the decision stands.", "spans": [[26, 36, "emp_id"]], "label": "pii", "group": "emp_id:0"}
+{"text": "CC-26414 is closed to new bookings.", "spans": [], "label": "clean", "group": "neg_cost:1"}
+{"text": "Order ORD-566418 shipped from the Leeds depot.", "spans": [], "label": "clean", "group": "neg_order:0"}
+{"text": "Costs in CASE 2023/3335 were assessed on the standard basis.", "spans": [[9, 23, "case_ref"]], "label": "pii", "group": "case_ref:3"}
+{"text": "Signed off by vance47 in the approvals queue.", "spans": [[14, 21, "staff_login"]], "label": "pii", "group": "staff_login:0"}
+{"text": "Access was granted to EMP/108154 on the same day.", "spans": [[22, 32, "emp_id"]], "label": "pii", "group": "emp_id:3"}
+{"text": "Referral PT-2023-89843 was triaged on arrival.", "spans": [[9, 22, "patient_ref"]], "label": "pii", "group": "patient_ref:0"}
+{"text": "Badge B-98890 no longer opens the third floor.", "spans": [[6, 13, "badge"]], "label": "pii", "group": "badge:3"}
+{"text": "The overspend sits in CC-63124.", "spans": [], "label": "clean", "group": "neg_cost:2"}
+{"text": "Part 8457637789 is superseded by the revised bracket.", "spans": [], "label": "clean", "group": "neg_part:0"}
+{"text": "The reviewer of record is EMP/414766 and the decision stands.", "spans": [[26, 36, "emp_id"]], "label": "pii", "group": "emp_id:0"}
+{"text": "Discharge summary for PT/2023/38274 is outstanding.", "spans": [[22, 35, "patient_ref"]], "label": "pii", "group": "patient_ref:3"}
+{"text": "Badge BDG11325 no longer opens the third floor.", "spans": [[6, 14, "badge"]], "label": "pii", "group": "badge:3"}
+{"text": "Send the file to tom.doe@example.com before noon.", "spans": [[17, 36, "email"]], "label": "pii", "group": "email:0"}
+{"text": "Signed off by e.nakamura in the approvals queue.", "spans": [[14, 24, "staff_login"]], "label": "pii", "group": "staff_login:0"}
+{"text": "Payment taken on card 6431675625662726 at the till.", "spans": [[22, 38, "card"]], "label": "pii", "group": "card:0"}
+{"text": "Notes against PT/2022/55766 were amended twice.", "spans": [[14, 27, "patient_ref"]], "label": "pii", "group": "patient_ref:1"}
+{"text": "The number on the account is +44 20 7946 9060.", "spans": [[29, 45, "phone"]], "label": "pii", "group": "phone:1"}
+{"text": "The bundle for CASE-2022-4346 runs to four hundred pages.", "spans": [[15, 29, "case_ref"]], "label": "pii", "group": "case_ref:1"}
+{"text": "ORD/134895 was cancelled before picking.", "spans": [], "label": "clean", "group": "neg_order:1"}
+{"text": "The reviewer of record is EMP-155106 and the decision stands.", "spans": [[26, 36, "emp_id"]], "label": "pii", "group": "emp_id:0"}
+{"text": "Referral PT-2024-10934 was triaged on arrival.", "spans": [[9, 22, "patient_ref"]], "label": "pii", "group": "patient_ref:0"}
+{"text": "Badge B-89775 no longer opens the third floor.", "spans": [[6, 13, "badge"]], "label": "pii", "group": "badge:3"}
+{"text": "The bundle for CASE 2020/6562 runs to four hundred pages.", "spans": [[15, 29, "case_ref"]], "label": "pii", "group": "case_ref:1"}
+{"text": "Device serial 4754080351385333 failed the drop test.", "spans": [], "label": "clean", "group": "neg_serial:0"}
+{"text": "The reviewer of record is EMP-583321 and the decision stands.", "spans": [[26, 36, "emp_id"]], "label": "pii", "group": "emp_id:0"}
+{"text": "Invoice INV/2022/64017 remains unpaid.", "spans": [], "label": "clean", "group": "neg_invoice:0"}
+{"text": "Conformity with EN 60601-1 was assessed in full.", "spans": [], "label": "clean", "group": "clean:1"}
+{"text": "The lease on ASSET-36369 ends in June.", "spans": [], "label": "clean", "group": "neg_asset:2"}
+{"text": "The pallet against ORD-692096 arrived short.", "spans": [], "label": "clean", "group": "neg_order:2"}
+{"text": "Conformity with EN 60601-1 was assessed in full.", "spans": [], "label": "clean", "group": "clean:1"}
+{"text": "Notes against PT-2023-37978 were amended twice.", "spans": [[14, 27, "patient_ref"]], "label": "pii", "group": "patient_ref:1"}
+{"text": "Badge B-60411 was reported lost in March.", "spans": [[6, 13, "badge"]], "label": "pii", "group": "badge:1"}
+{"text": "The bundle for CASE 2019/1426 runs to four hundred pages.", "spans": [[15, 29, "case_ref"]], "label": "pii", "group": "case_ref:1"}
+{"text": "ASSET-50461 is booked to the Bristol site.", "spans": [], "label": "clean", "group": "neg_asset:1"}
+{"text": "Escalated by EMP/117801 after the second call.", "spans": [[13, 23, "emp_id"]], "label": "pii", "group": "emp_id:1"}
+{"text": "Referral PT/2021/12881 was triaged on arrival.", "spans": [[9, 22, "patient_ref"]], "label": "pii", "group": "patient_ref:0"}
+{"text": "Order ORD-353196 shipped from the Leeds depot.", "spans": [], "label": "clean", "group": "neg_order:0"}
+{"text": "Section 12 Place of performance is unchanged.", "spans": [], "label": "clean", "group": "clean:6"}
+{"text": "Delivery is scheduled for the following quarter subject to approval.", "spans": [], "label": "clean", "group": "clean:2"}
+{"text": "Escalated by EMP-183516 after the second call.", "spans": [[13, 23, "emp_id"]], "label": "pii", "group": "emp_id:1"}
+{"text": "Notes against PT/2019/32130 were amended twice.", "spans": [[14, 27, "patient_ref"]], "label": "pii", "group": "patient_ref:1"}
+{"text": "Payment taken on card 2919729904560075 at the till.", "spans": [[22, 38, "card"]], "label": "pii", "group": "card:0"}
+{"text": "The bundle for CASE 2020/9313 runs to four hundred pages.", "spans": [[15, 29, "case_ref"]], "label": "pii", "group": "case_ref:1"}
+{"text": "The ticket was reassigned to nakamura73 overnight.", "spans": [[29, 39, "staff_login"]], "label": "pii", "group": "staff_login:3"}
+{"text": "The committee deferred the decision to the next quarter.", "spans": [], "label": "clean", "group": "clean:0"}
+{"text": "The scan booked under PT-2019-79703 did not go ahead.", "spans": [[22, 35, "patient_ref"]], "label": "pii", "group": "patient_ref:2"}
+{"text": "The lease on ASSET-69758 ends in June.", "spans": [], "label": "clean", "group": "neg_asset:2"}
+{"text": "The bundle for CASE 2025/1148 runs to four hundred pages.", "spans": [[15, 29, "case_ref"]], "label": "pii", "group": "case_ref:1"}
+{"text": "The pallet against ORD-263752 arrived short.", "spans": [], "label": "clean", "group": "neg_order:2"}
+{"text": "The pallet against ORD-770449 arrived short.", "spans": [], "label": "clean", "group": "neg_order:2"}
+{"text": "Discharge summary for PT/2023/63954 is outstanding.", "spans": [[22, 35, "patient_ref"]], "label": "pii", "group": "patient_ref:3"}
+{"text": "Charged to cost centre CC-79349 for the quarter.", "spans": [], "label": "clean", "group": "neg_cost:0"}
+{"text": "The lease on ASSET-21878 ends in June.", "spans": [], "label": "clean", "group": "neg_asset:2"}
+{"text": "ASSET-19092 is booked to the Bristol site.", "spans": [], "label": "clean", "group": "neg_asset:1"}
+{"text": "Call +44 20 7946 6647 before the site closes.", "spans": [[5, 21, "phone"]], "label": "pii", "group": "phone:0"}
+{"text": "Send the file to arun.ross@example.com before noon.", "spans": [[17, 38, "email"]], "label": "pii", "group": "email:0"}
+{"text": "The door was held open for BDG43276 by a contractor.", "spans": [[27, 35, "badge"]], "label": "pii", "group": "badge:2"}
+{"text": "Call +44 20 7946 8353 before the site closes.", "spans": [[5, 21, "phone"]], "label": "pii", "group": "phone:0"}
+{"text": "The pallet against ORD-713944 arrived short.", "spans": [], "label": "clean", "group": "neg_order:2"}
+{"text": "Access was granted to EMP/973998 on the same day.", "spans": [[22, 32, "emp_id"]], "label": "pii", "group": "emp_id:3"}
+{"text": "The scan booked under PT/2020/51535 did not go ahead.", "spans": [[22, 35, "patient_ref"]], "label": "pii", "group": "patient_ref:2"}
+{"text": "Delivery is scheduled for the following quarter subject to approval.", "spans": [], "label": "clean", "group": "clean:2"}
+{"text": "Correspondence goes to arun.doe@example.com from now on.", "spans": [[23, 43, "email"]], "label": "pii", "group": "email:1"}
+{"text": "Signed off by halvorsen16 in the approvals queue.", "spans": [[14, 25, "staff_login"]], "label": "pii", "group": "staff_login:0"}
+{"text": "Part 1511050268 is superseded by the revised bracket.", "spans": [], "label": "clean", "group": "neg_part:0"}
+{"text": "Part 0284006521 is superseded by the revised bracket.", "spans": [], "label": "clean", "group": "neg_part:0"}
+{"text": "Delivery is scheduled for the following quarter subject to approval.", "spans": [], "label": "clean", "group": "clean:2"}
+{"text": "The bundle for CASE-2023-6378 runs to four hundred pages.", "spans": [[15, 29, "case_ref"]], "label": "pii", "group": "case_ref:1"}
+{"text": "Figure 4 Way of working, as adopted by the board.", "spans": [], "label": "clean", "group": "clean:7"}
+{"text": "Section 12 Place of performance is unchanged.", "spans": [], "label": "clean", "group": "clean:6"}
+{"text": "Notes against PT-2021-32284 were amended twice.", "spans": [[14, 27, "patient_ref"]], "label": "pii", "group": "patient_ref:1"}
+{"text": "See the specification and the change log that accompanies it.", "spans": [], "label": "clean", "group": "clean:5"}
+{"text": "Costs in CASE 2021/3260 were assessed on the standard basis.", "spans": [[9, 23, "case_ref"]], "label": "pii", "group": "case_ref:3"}
+{"text": "Signed off by m.okonkwo in the approvals queue.", "spans": [[14, 23, "staff_login"]], "label": "pii", "group": "staff_login:0"}
+{"text": "Payment taken on card 5058000199226069 at the till.", "spans": [[22, 38, "card"]], "label": "pii", "group": "card:0"}
+{"text": "The bill of materials lists 3637691442 twice.", "spans": [], "label": "clean", "group": "neg_part:1"}
+{"text": "See the specification and the change log that accompanies it.", "spans": [], "label": "clean", "group": "clean:5"}
+{"text": "Serial 5095618026066617 was returned under warranty.", "spans": [], "label": "clean", "group": "neg_serial:2"}
+{"text": "Attendance was down on the same week last year.", "spans": [], "label": "clean", "group": "clean:4"}
+{"text": "Correspondence goes to mira.patel@example.com from now on.", "spans": [[23, 45, "email"]], "label": "pii", "group": "email:1"}
+{"text": "The credit note reverses INV/2020/17065 in full.", "spans": [], "label": "clean", "group": "neg_invoice:2"}
+{"text": "Entry logged on badge B-65761 at the loading bay.", "spans": [[22, 29, "badge"]], "label": "pii", "group": "badge:0"}
+{"text": "Device serial 6308275945164253 failed the drop test.", "spans": [], "label": "clean", "group": "neg_serial:0"}
+{"text": "The ticket was reassigned to halvorsen62 overnight.", "spans": [[29, 40, "staff_login"]], "label": "pii", "group": "staff_login:3"}
+{"text": "Payment taken on card 2998139981492610 at the till.", "spans": [[22, 38, "card"]], "label": "pii", "group": "card:0"}
+{"text": "The scan booked under PT-2021-24174 did not go ahead.", "spans": [[22, 35, "patient_ref"]], "label": "pii", "group": "patient_ref:2"}
+{"text": "The lease on ASSET-43277 ends in June.", "spans": [], "label": "clean", "group": "neg_asset:2"}
+{"text": "Conformity with EN 60601-1 was assessed in full.", "spans": [], "label": "clean", "group": "clean:1"}
+{"text": "INV-2025-76426 was raised against the wrong entity.", "spans": [], "label": "clean", "group": "neg_invoice:1"}
+{"text": "The credit note reverses INV/2022/44803 in full.", "spans": [], "label": "clean", "group": "neg_invoice:2"}
+{"text": "Discharge summary for PT-2021-39440 is outstanding.", "spans": [[22, 35, "patient_ref"]], "label": "pii", "group": "patient_ref:3"}
+{"text": "The door was held open for BDG22014 by a contractor.", "spans": [[27, 35, "badge"]], "label": "pii", "group": "badge:2"}
+{"text": "Costs in CASE-2024-7021 were assessed on the standard basis.", "spans": [[9, 23, "case_ref"]], "label": "pii", "group": "case_ref:3"}
+{"text": "Delivery is scheduled for the following quarter subject to approval.", "spans": [], "label": "clean", "group": "clean:2"}
+{"text": "Escalated by EMP/792065 after the second call.", "spans": [[13, 23, "emp_id"]], "label": "pii", "group": "emp_id:1"}
+{"text": "See the specification and the change log that accompanies it.", "spans": [], "label": "clean", "group": "clean:5"}
+{"text": "Badge B-62585 was reported lost in March.", "spans": [[6, 13, "badge"]], "label": "pii", "group": "badge:1"}
+{"text": "Costs in CASE-2024-7126 were assessed on the standard basis.", "spans": [[9, 23, "case_ref"]], "label": "pii", "group": "case_ref:3"}
+{"text": "ASSET-57082 is booked to the Bristol site.", "spans": [], "label": "clean", "group": "neg_asset:1"}
+{"text": "The build takes twenty minutes and costs nothing to run again.", "spans": [], "label": "clean", "group": "clean:3"}
+{"text": "Call +44 20 7946 1662 before the site closes.", "spans": [[5, 21, "phone"]], "label": "pii", "group": "phone:0"}
+{"text": "The door was held open for B-52835 by a contractor.", "spans": [[27, 34, "badge"]], "label": "pii", "group": "badge:2"}
+{"text": "The bundle for CASE 2019/4829 runs to four hundred pages.", "spans": [[15, 29, "case_ref"]], "label": "pii", "group": "case_ref:1"}
+{"text": "The committee deferred the decision to the next quarter.", "spans": [], "label": "clean", "group": "clean:0"}
+{"text": "The reviewer of record is EMP-222150 and the decision stands.", "spans": [[26, 36, "emp_id"]], "label": "pii", "group": "emp_id:0"}
+{"text": "Payment taken on card 5308961823366704 at the till.", "spans": [[22, 38, "card"]], "label": "pii", "group": "card:0"}
+{"text": "Entry logged on badge BDG13742 at the loading bay.", "spans": [[22, 30, "badge"]], "label": "pii", "group": "badge:0"}
+{"text": "The bill of materials lists 5368818173 twice.", "spans": [], "label": "clean", "group": "neg_part:1"}
+{"text": "The ticket was reassigned to vance68 overnight.", "spans": [[29, 36, "staff_login"]], "label": "pii", "group": "staff_login:3"}
+{"text": "CC-59444 is closed to new bookings.", "spans": [], "label": "clean", "group": "neg_cost:1"}
+{"text": "Discharge summary for PT/2025/78469 is outstanding.", "spans": [[22, 35, "patient_ref"]], "label": "pii", "group": "patient_ref:3"}
+{"text": "The card ending in the same digits, 3102505927636737, was declined.", "spans": [[36, 52, "card"]], "label": "pii", "group": "card:1"}
+{"text": "Counsel instructed on CASE-2024-6374 has withdrawn.", "spans": [[22, 36, "case_ref"]], "label": "pii", "group": "case_ref:2"}
+{"text": "The ticket was reassigned to p.patel overnight.", "spans": [[29, 36, "staff_login"]], "label": "pii", "group": "staff_login:3"}
+{"text": "Stock of 8645732580 runs out in August.", "spans": [], "label": "clean", "group": "neg_part:2"}
+{"text": "The number on the account is +44 20 7946 8190.", "spans": [[29, 45, "phone"]], "label": "pii", "group": "phone:1"}
+{"text": "See the specification and the change log that accompanies it.", "spans": [], "label": "clean", "group": "clean:5"}
+{"text": "Call +44 20 7946 3401 before the site closes.", "spans": [[5, 21, "phone"]], "label": "pii", "group": "phone:0"}
+{"text": "Signed off by g.halvorsen in the approvals queue.", "spans": [[14, 25, "staff_login"]], "label": "pii", "group": "staff_login:0"}
+{"text": "The card ending in the same digits, 4063169968302876, was declined.", "spans": [[36, 52, "card"]], "label": "pii", "group": "card:1"}
+{"text": "Referral PT/2023/74584 was triaged on arrival.", "spans": [[9, 22, "patient_ref"]], "label": "pii", "group": "patient_ref:0"}
+{"text": "The card ending in the same digits, 6541039098527410, was declined.", "spans": [[36, 52, "card"]], "label": "pii", "group": "card:1"}
+{"text": "CC-76429 is closed to new bookings.", "spans": [], "label": "clean", "group": "neg_cost:1"}
+{"text": "Mailbox delegation was given to halvorsen24.", "spans": [[32, 43, "staff_login"]], "label": "pii", "group": "staff_login:2"}
+{"text": "Timesheet for EMP-881246 was approved late.", "spans": [[14, 24, "emp_id"]], "label": "pii", "group": "emp_id:2"}
+{"text": "Correspondence goes to jane.patel@example.com from now on.", "spans": [[23, 45, "email"]], "label": "pii", "group": "email:1"}
+{"text": "The committee deferred the decision to the next quarter.", "spans": [], "label": "clean", "group": "clean:0"}
+{"text": "ASSET-55094 is booked to the Bristol site.", "spans": [], "label": "clean", "group": "neg_asset:1"}
+{"text": "Attendance was down on the same week last year.", "spans": [], "label": "clean", "group": "clean:4"}
+{"text": "Order ORD-792361 shipped from the Leeds depot.", "spans": [], "label": "clean", "group": "neg_order:0"}
+{"text": "Discharge summary for PT-2019-13002 is outstanding.", "spans": [[22, 35, "patient_ref"]], "label": "pii", "group": "patient_ref:3"}
+{"text": "SSN 321-41-8976 is on file with payroll.", "spans": [[4, 15, "ssn"]], "label": "pii", "group": "ssn:0"}
+{"text": "Asset ASSET-42612 was written down in full.", "spans": [], "label": "clean", "group": "neg_asset:0"}
+{"text": "Mailbox delegation was given to c.vance.", "spans": [[32, 39, "staff_login"]], "label": "pii", "group": "staff_login:2"}
+{"text": "The committee deferred the decision to the next quarter.", "spans": [], "label": "clean", "group": "clean:0"}
+{"text": "See the specification and the change log that accompanies it.", "spans": [], "label": "clean", "group": "clean:5"}
+{"text": "The pallet against ORD-358509 arrived short.", "spans": [], "label": "clean", "group": "neg_order:2"}
+{"text": "The bundle for CASE-2023-5905 runs to four hundred pages.", "spans": [[15, 29, "case_ref"]], "label": "pii", "group": "case_ref:1"}
+{"text": "Correspondence goes to arun.doe@example.com from now on.", "spans": [[23, 43, "email"]], "label": "pii", "group": "email:1"}
+{"text": "Access was granted to EMP/322811 on the same day.", "spans": [[22, 32, "emp_id"]], "label": "pii", "group": "emp_id:3"}
+{"text": "Discharge summary for PT/2020/21267 is outstanding.", "spans": [[22, 35, "patient_ref"]], "label": "pii", "group": "patient_ref:3"}
+{"text": "Order ORD-883157 shipped from the Leeds depot.", "spans": [], "label": "clean", "group": "neg_order:0"}
+{"text": "Counsel instructed on CASE 2025/5871 has withdrawn.", "spans": [[22, 36, "case_ref"]], "label": "pii", "group": "case_ref:2"}
+{"text": "The bill of materials lists 6849336347 twice.", "spans": [], "label": "clean", "group": "neg_part:1"}
+{"text": "Device serial 3875464780347104 failed the drop test.", "spans": [], "label": "clean", "group": "neg_serial:0"}
+{"text": "Asset ASSET-96070 was written down in full.", "spans": [], "label": "clean", "group": "neg_asset:0"}
+{"text": "Call +44 20 7946 9284 before the site closes.", "spans": [[5, 21, "phone"]], "label": "pii", "group": "phone:0"}
+{"text": "The bundle for CASE-2019-8145 runs to four hundred pages.", "spans": [[15, 29, "case_ref"]], "label": "pii", "group": "case_ref:1"}
+{"text": "The committee deferred the decision to the next quarter.", "spans": [], "label": "clean", "group": "clean:0"}
+{"text": "Part 2184869767 is superseded by the revised bracket.", "spans": [], "label": "clean", "group": "neg_part:0"}
+{"text": "The replacement unit ships as serial 2912741644158810.", "spans": [], "label": "clean", "group": "neg_serial:1"}
+{"text": "Badge B-61385 was reported lost in March.", "spans": [[6, 13, "badge"]], "label": "pii", "group": "badge:1"}
+{"text": "Part 3921974445 is superseded by the revised bracket.", "spans": [], "label": "clean", "group": "neg_part:0"}
+{"text": "Signed off by k.okonkwo in the approvals queue.", "spans": [[14, 23, "staff_login"]], "label": "pii", "group": "staff_login:0"}
+{"text": "Attendance was down on the same week last year.", "spans": [], "label": "clean", "group": "clean:4"}
+{"text": "Notes against PT/2019/53544 were amended twice.", "spans": [[14, 27, "patient_ref"]], "label": "pii", "group": "patient_ref:1"}
+{"text": "The door was held open for B-53288 by a contractor.", "spans": [[27, 34, "badge"]], "label": "pii", "group": "badge:2"}
+{"text": "Order ORD-491136 shipped from the Leeds depot.", "spans": [], "label": "clean", "group": "neg_order:0"}
+{"text": "Signed off by patel24 in the approvals queue.", "spans": [[14, 21, "staff_login"]], "label": "pii", "group": "staff_login:0"}
+{"text": "The replacement unit ships as serial 2695978538065585.", "spans": [], "label": "clean", "group": "neg_serial:1"}
+{"text": "Serial 5052547760375200 was returned under warranty.", "spans": [], "label": "clean", "group": "neg_serial:2"}
+{"text": "Delivery is scheduled for the following quarter subject to approval.", "spans": [], "label": "clean", "group": "clean:2"}
+{"text": "The lease on ASSET-66352 ends in June.", "spans": [], "label": "clean", "group": "neg_asset:2"}
+{"text": "Serial 6732959318734646 was returned under warranty.", "spans": [], "label": "clean", "group": "neg_serial:2"}
+{"text": "Call +44 20 7946 5109 before the site closes.", "spans": [[5, 21, "phone"]], "label": "pii", "group": "phone:0"}
+{"text": "The bill of materials lists 1118098595 twice.", "spans": [], "label": "clean", "group": "neg_part:1"}
+{"text": "The build takes twenty minutes and costs nothing to run again.", "spans": [], "label": "clean", "group": "clean:3"}
+{"text": "Case CASE 2019/7412 was settled without a hearing.", "spans": [[5, 19, "case_ref"]], "label": "pii", "group": "case_ref:0"}
+{"text": "The card ending in the same digits, 2229322347429432, was declined.", "spans": [[36, 52, "card"]], "label": "pii", "group": "card:1"}
+{"text": "Access was granted to EMP-308535 on the same day.", "spans": [[22, 32, "emp_id"]], "label": "pii", "group": "emp_id:3"}
+{"text": "The committee deferred the decision to the next quarter.", "spans": [], "label": "clean", "group": "clean:0"}
+{"text": "Badge B-45501 no longer opens the third floor.", "spans": [[6, 13, "badge"]], "label": "pii", "group": "badge:3"}
+{"text": "Counsel instructed on CASE-2019-3349 has withdrawn.", "spans": [[22, 36, "case_ref"]], "label": "pii", "group": "case_ref:2"}
+{"text": "Correspondence goes to arun.patel@example.com from now on.", "spans": [[23, 45, "email"]], "label": "pii", "group": "email:1"}

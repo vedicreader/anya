@@ -39,13 +39,36 @@ batching, decoding, error handling and file arrangement live in `core` and `visi
 Nothing in `anya/vision.py` may import a runtime. It is numpy and Pillow so that the decoders can be
 tested without a wheel.
 
+## The PII module
+
+`08_pii` and `09_runs` are text, not pixels, and they follow the same extras rule as the runtimes:
+`import anya` and `anya.pii.PiiDetector()` need nothing new, fitting one needs `anya[pii]`, and the
+ImportError names it. `anya/runs.py` imports no sklearn at all, so the report can be built and tested
+without the extra.
+
+`fit` returns a `PiiDetector` whether or not there was anything to fit on. The fallback is that
+object in its unfitted state, delegating to `baseline()`, which is `vishalakshi.pii.pii_spans` when
+that imports and `floor_spans` otherwise. Do not add patterns to `FLOOR`: it is a floor, and the bank
+lives in vishalakshi. `$ANYA_PII_BASELINE=floor` forces the floor, which is how `evals` measures both.
+
+The default `mode='defer'` exists because a tagger trained on cards labels device serials the bank had
+gated. Any change to the arbitration needs a number from `evals/pii_learned.py` behind it, run against
+both baselines, because they disagree about which mode wins.
+
 ## Tests and fixtures
 
 Tests are non-exported `#| hide` cells. They run against the tiny models in `nbs/fixtures`, which are
 built by `evals/mkfixtures.py` and committed, so CI needs the inference runtimes but no download and
 no tensorflow. Regenerate them only when a fixture needs to change shape, and say so in the commit.
+`nbs/fixtures/pii_org.jsonl` is the same idea for text, built by `evals/mkpii.py`.
 
 Anything that needs the network or a Mac is `#| eval: false`. `04_apple` is entirely so.
+
+## Evals
+
+`evals/` is not shipped in the wheel. Results go in `evals/RESULTS.md` with the method, and anything
+claimed in a docstring or a markdown cell should have a number there behind it. Paired bootstrap over
+documents, CI spanning zero reported as no difference.
 
 ## Two traps worth knowing
 

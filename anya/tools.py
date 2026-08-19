@@ -17,7 +17,8 @@ from .tasks import as_model, bench, classify, detect, find_similar, segment, sor
 
 # %% auto #0
 __all__ = ['SAFE', 'WRITE', 'TOOLS', 'find_model', 'model_info', 'name_model', 'classify_image', 'detect_image', 'segment_image',
-           'classify_folder', 'sort_folder', 'similar_images', 'label_video', 'count_images', 'tool_names', 'main']
+           'classify_folder', 'sort_folder', 'similar_images', 'label_video', 'count_images', 'scan_text',
+           'redact_text', 'fit_pii', 'tool_names', 'main']
 
 # %% ../nbs/07_tools.ipynb #11a367f4
 def find_model(query:str,           # what the model should do, in words
@@ -139,10 +140,43 @@ def count_images(folder:str,                # folder to look in
     xs = items(folder, types=types)
     return dict(folder=str(folder), n=len(xs), sample=[str(x) for x in xs[:10]])
 
+# %% ../nbs/07_tools.ipynb #c48a61ee
+def scan_text(text:str,          # the text to look at
+              model:str=None,    # a detector fitted by `anya.pii`; None -> patterns only
+             ) -> dict:
+    'Find personal information in a piece of text: which kinds, where, and whether it counts as private.'
+    from anya.pii import PiiDetector, load_pii
+    det = load_pii(model) if model else PiiDetector()
+    r = det.report(text)
+    # offsets and kinds, never the matched characters: a tool result is somewhere PII should not go
+    return dict(has_pii=r.has_pii, kinds=r.kinds, n=r.n, fitted=r.fitted, chars=r.scanned,
+                spans=[{k: s[k] for k in ('start', 'end', 'kind', 'source')} for s in r.spans])
+
+def redact_text(text:str,        # the text to mask
+                model:str=None,  # a detector fitted by `anya.pii`; None -> patterns only
+                mask:str=None,   # what to put in place of a match; None -> `[KIND]`
+               ) -> dict:
+    'Mask the personal information in a piece of text.'
+    from anya.pii import PiiDetector, load_pii
+    det = load_pii(model) if model else PiiDetector()
+    return dict(text=det.redact(text, mask=mask), kinds=det.report(text).kinds, fitted=det.fitted)
+
+def fit_pii(data:str,            # labelled examples: a .jsonl/.json/.csv file, or a folder of <class>/*.txt
+            name:str,            # what to save the fitted detector as
+            valid:float=0.25,    # share of the examples held out to score it on
+           ) -> dict:
+    'Fit a PII detector on labelled examples, save it under a name, and say what it scored.'
+    from anya.pii import fit_run
+    r = fit_run(data, name=name, valid=valid, save_as=name)
+    return dict(name=name, run=r['path'], report=str(Path(r['path'])/'report.html'),
+                saved_to=r.get('saved_to'), kinds=r['metrics'].get('kinds'),
+                spans=r['metrics'].get('spans'), fitted=r['config'].get('fitted_at'))
+
+
 # %% ../nbs/07_tools.ipynb #75f6b158
 SAFE = [find_model, model_info, count_images, classify_image, detect_image, segment_image,
-        classify_folder, similar_images, label_video]
-WRITE = [sort_folder, name_model]
+        classify_folder, similar_images, label_video, scan_text, redact_text]
+WRITE = [sort_folder, name_model, fit_pii]
 TOOLS = SAFE + WRITE
 
 def tool_names() -> list:

@@ -8,8 +8,9 @@ from .tasks import *
 # Runtimes are optional extras (`pip install 'anya[onnx]'`, `[litert]`, `[coreml]`), so importing one
 # eagerly here would make `import anya` fail on a machine that only has the others. `Model(name)`
 # imports the runtime it actually needs, lazily, via `core.get_runtime`. `anya.onnx` and friends
-# still work as ordinary submodule imports; this only stops them being *required*.
-_lazy = ('onnx', 'litert', 'apple', 'hub', 'tools')
+# still work as ordinary submodule imports; this only stops them being *required*. `pii` is here
+# for the same reason: fitting one needs scikit-learn (`anya[pii]`), scanning with the patterns does not.
+_lazy = ('onnx', 'litert', 'apple', 'hub', 'tools', 'pii', 'runs')
 
 def __getattr__(name):
     "Import a runtime or helper submodule on first attribute access (`anya.litert` without a hard dependency)."

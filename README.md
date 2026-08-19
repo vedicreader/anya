@@ -15,7 +15,8 @@ preprocessing off the graph, and returns something JSON-shaped.
 pip install 'anya[onnx]'      # ONNX Runtime, everywhere
 pip install 'anya[litert]'    # .tflite, the on-device zoo
 pip install 'anya[coreml]'    # .mlpackage on a Mac
-pip install 'anya[all]'       # every runtime your platform supports, plus hub, video and audio
+pip install 'anya[pii]'       # scikit-learn, to fit a PII detector on your own examples
+pip install 'anya[all]'       # every runtime your platform supports, plus hub, video, audio and pii
 ```
 
 Runtime modules import lazily, so `import anya` never pulls in a wheel you
@@ -154,8 +155,11 @@ tool_names()
      'classify_folder',
      'similar_images',
      'label_video',
+     'scan_text',
+     'redact_text',
      'sort_folder',
-     'name_model']
+     'name_model',
+     'fit_pii']
 
 There is a CLI over the same functions:
 
@@ -163,6 +167,69 @@ There is a CLI over the same functions:
 anya model_info litert-community/some-classifier
 anya classify_folder ~/Pictures/birds --model=aussie-birds
 anya sort_folder ~/Pictures/birds --model=aussie-birds --apply=1
+```
+
+## PII, fitted on your own examples
+
+An organisation’s PII is mostly not the world’s PII. `EMP-483920` identifies
+somebody and no pattern bank ships it; `ORD-483920` identifies a pallet and
+has the same shape. `anya.pii` fits a span tagger and a document classifier on
+whatever a team already labelled, and defers to arithmetic for the kinds
+arithmetic already knows.
+
+``` python
+from anya.pii import dataset, evaluate, fit
+
+ds = dataset('fixtures/pii_org.jsonl')       # jsonl, csv, doccano, Label Studio, or a folder of classes
+tr, va = ds.split(0.25)                      # holds out whole `group`s, so no template straddles it
+det = fit(tr)
+det
+```
+
+    PiiDetector(mode=defer, kinds=9, deferred=4, doc=yes, bias=0)
+
+``` python
+det.report('Escalated by EMP-774310 after the second call.')
+```
+
+    {'has_pii': True,
+     'kinds': {'emp_id': 1},
+     'n': 1,
+     'scanned': 46,
+     'density': 21.739,
+     'label': 'pii',
+     'label_score': 0.9129,
+     'fitted': True,
+     'mode': 'defer',
+     'spans': [{'start': 13, 'end': 23, 'kind': 'emp_id',
+                'text': 'EMP-774310', 'source': 'learned'}]}
+
+`source` says which layer found it. The patterns cannot see `EMP-774310`; the
+tagger cannot see a checksum. On `evals/mkpii.py` the two together score 0.907
+span F1 against the pattern bank’s 0.399, and invent nothing the bank had gated
+(`evals/RESULTS.md`).
+
+With nothing to fit on you get the same object, answering out of the pattern
+bank. That is the fallback: a state, not a second code path.
+
+``` python
+fit([]), fit([]).spans('mail jane@example.com')
+```
+
+    (PiiDetector(unfitted, baseline=floor_spans),
+     [(5, 21, 'email', 'jane@example.com')])
+
+`fit_run` is the loop: split, fit, sweep the decoding bias, score, compare
+against the baseline with a paired bootstrap, and write a run to
+`~/.anya/pii/runs/` with a `report.html` you can open. It draws per-kind
+precision and recall, what a point of recall costs, and every mistake with the
+characters either side of it, filterable. In a notebook the returned run
+renders as that report.
+
+``` python
+from anya.pii import fit_run
+run = fit_run('tickets.jsonl', name='acme', save_as='acme')   # then: anya scan_text "..." --model=acme
+run                                                           # the report, inline
 ```
 
 ## Finding a model
@@ -193,3 +260,5 @@ web through [fossick](https://github.com/vedicreader/fossick) instead.
 | `05_hub`     | finding, fetching and naming models                                              |
 | `06_tasks`   | `classify` / `detect` / `segment` / `embed`, `sort_images`, `find_similar`, `bench` |
 | `07_tools`   | the tool surface a chat model calls, and the CLI                                 |
+| `08_pii`     | fitting a PII detector on your own examples, and the fallback when you have none |
+| `09_runs`    | where a training run’s numbers live, and the report you read them on             |
