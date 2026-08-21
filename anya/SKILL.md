@@ -32,6 +32,7 @@ under `preds` (classify), `objects` (detect), `mask`/`classes` (segment) or `vec
 - Files (`anya.core`): `items(o, types='image', exclude=None)` expands a folder/glob/list; `arrange(preds, dest, how='copy', min_score=0, dry_run=True)` files them by label; `load_model` caches by arguments; `safe_name` turns a label into a directory name.
 - Hub (`anya.hub`): `find_models(query, task=, runtime=)`, `web_models(query)` (fossick fallback), `resolve_model(repo_id)`, `fetch(repo, file)`, `alias(name, repo, **kw)`, `aliases()`.
 - Tools (`anya.tools`): `TOOLS` for `Chat(tools=...)`, `SAFE` for the read-only subset, `segment_masks` to write one PNG per class, plus the `anya` CLI over the same functions.
+- Doubles (`anya.testing`): `FakeModel` answers from a script, `fake_segment({'fence': box, 'car': box})` and `fake_detect([...])` build one. A pipeline that uses anya can be tested with no runtime installed and nothing downloaded.
 
 ## Runtimes
 
@@ -66,7 +67,9 @@ resized to the picture that went in, as detection boxes already were. A segforme
 128x128 logit grid asked about a 724x543 photo returns a 543x724 label map.
 
 Getting one out of the process takes `save_masks(pred, dest, want='car')`, or the `segment_masks`
-tool, which writes `<stem>.<label>.png` per class and returns the paths. The default destination is a
+tool, which writes `<stem>.<label>.png` per class, writes the whole label map as `<stem>.labels.png`
+for a tool that would rather pick classes by index, and returns every class with the box that holds
+it. `class_boxes(pred)` is that last part on its own. The default destination is a
 `masks` folder beside the picture. A later folder run over that folder needs `exclude=`, or a
 destination somewhere else.
 

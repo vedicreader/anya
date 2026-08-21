@@ -15,8 +15,8 @@ from .core import Model, Pred, Preds, arrange, items, load_model, safe_name
 from .vision import similarity
 
 # %% auto #0
-__all__ = ['ASK', 'as_model', 'run', 'classify', 'detect', 'segment', 'embed', 'matches', 'pick', 'ask', 'save_masks',
-           'sort_images', 'summarize', 'find_similar', 'index_folder', 'bench']
+__all__ = ['ASK', 'as_model', 'run', 'classify', 'detect', 'segment', 'embed', 'matches', 'pick', 'ask', 'save_labelmap',
+           'class_boxes', 'save_masks', 'sort_images', 'summarize', 'find_similar', 'index_folder', 'bench']
 
 # %% ../nbs/06_tasks.ipynb #c28704e3
 def as_model(model, **kw) -> Model:
@@ -85,6 +85,25 @@ def ask(x,                     # a picture, a folder, or pixels
     p = run(x, s.get('model') or model, task=s.get('task'), **{**call, **kw})
     if not s.get('find'): return p
     return Preds([pick(q, s['find']) for q in p]) if isinstance(p, Preds) else pick(p, s['find'])
+
+def save_labelmap(p:Pred, dest, stem:str=None) -> str:
+    'The whole label map as one PNG, so a tool can pick classes by index later.'
+    from PIL import Image
+    d = Path(dest).expanduser(); d.mkdir(parents=True, exist_ok=True)
+    stem = stem or (Path(p['src']).stem if p.get('src') else 'mask')
+    f = d/f'{stem}.labels.png'
+    Image.fromarray(np.asarray(p['mask']).astype(np.uint8), 'L').save(f)
+    return str(f)
+
+def class_boxes(p:Pred, want=None) -> list:
+    "Each class in a label map with the box that holds it, which is where an edit starts."
+    m = np.asarray(p['mask']); out = []
+    for c in p.get('classes') or []:
+        if want and not matches(c['label'], want): continue
+        ys, xs = np.nonzero(m == c['index'])
+        out.append(dict(c, bbox=[int(xs.min()), int(ys.min()), int(xs.max())+1, int(ys.max())+1]
+                        if len(xs) else None))
+    return out
 
 def save_masks(p:Pred,          # a `Pred` from `segment`
                dest,            # folder to write into

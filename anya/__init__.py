@@ -9,7 +9,7 @@ from .tasks import *
 # eagerly here would make `import anya` fail on a machine that only has the others. `Model(name)`
 # imports the runtime it actually needs, lazily, via `core.get_runtime`. `anya.onnx` and friends
 # still work as ordinary submodule imports; this only stops them being *required*.
-_lazy = ('onnx', 'litert', 'apple', 'hub', 'tools')
+_lazy = ('onnx', 'litert', 'apple', 'hub', 'tools', 'testing')
 
 def __getattr__(name):
     "Import a runtime or helper submodule on first attribute access (`anya.litert` without a hard dependency)."

@@ -49,6 +49,10 @@ Documentation = "https://vedicreader.github.io/anya/"
 [project.entry-points.nbdev]
 anya = "anya._modidx:d"
 
+# ramabana resolves a `package:resource.md` value to the packaged skill body
+[project.entry-points.pyskills]
+anya = "anya:SKILL.md"
+
 [tool.nbdev]
 
 [tool.hatch.build.targets.wheel]

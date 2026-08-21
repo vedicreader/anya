@@ -13,8 +13,8 @@ import numpy as np
 from fastcore.all import AttrDict, L
 
 from .core import Preds, arrange, items, load_model
-from .tasks import (as_model, bench, classify, detect, find_similar, save_masks, segment,
-                        sort_images, summarize)
+from .tasks import (as_model, bench, class_boxes, classify, detect, find_similar, save_labelmap,
+                        save_masks, segment, sort_images, summarize)
 
 # %% auto #0
 __all__ = ['SAFE', 'WRITE', 'TOOLS', 'find_model', 'model_info', 'name_model', 'classify_image', 'detect_image', 'segment_image',
@@ -94,7 +94,8 @@ def segment_masks(path:str,         # the picture to look at
     if p.get('error'): return dict(src=str(path), error=p['error'])
     d = dest or str(Path(path).expanduser().parent/'masks')
     return dict(src=str(path), model=p.get('model'), dest=d, shape=p.get('shape'),
-                classes=p.get('classes', []), masks=save_masks(p, d, want=want))
+                classes=class_boxes(p, want=want), labelmap=save_labelmap(p, d),
+                masks=save_masks(p, d, want=want))
 
 # %% ../nbs/07_tools.ipynb #d2172bdb
 def classify_folder(folder:str,             # folder of pictures
@@ -165,10 +166,14 @@ def tool_names() -> list:
 
 # %% ../nbs/07_tools.ipynb #57ff7733
 def _coerce(v:str, ann):
-    'Command line strings into the types a tool declares.'
-    if ann is bool: return str(v).lower() not in ('0', 'false', 'no', '')
-    if ann is int: return int(v)
-    if ann is float: return float(v)
+    """Command line strings into the types a tool declares.
+
+    `from __future__ import annotations` leaves every annotation as a string, so the name is what
+    there is to match on."""
+    a = getattr(ann, '__name__', str(ann))
+    if a == 'bool': return str(v).lower() not in ('0', 'false', 'no', '')
+    if a == 'int': return int(float(v))
+    if a == 'float': return float(v)
     return v
 
 def main(argv=None) -> int:
