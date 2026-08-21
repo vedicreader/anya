@@ -197,6 +197,10 @@ def infer_task(shapes,          # output shapes the model declares, in order
               ) -> str:
     'Guess the task from output shapes: four heads is a detector, a wide map is a segmenter, and so on.'
     ns = ' '.join(str(n).lower() for n in (names or []))
+    ss = list(shapes)
+    # one output with a height and a width is a per-pixel map however the head is named: a segformer
+    # export calls its (batch, classes, h, w) output `logits`, which reads as a classifier otherwise
+    if len(ss) == 1 and len(ss[0]) >= 4 and 'box' not in ns: return 'segment'
     for k, t in (('box', 'detect'), ('mask', 'segment'), ('segment', 'segment'), ('embed', 'embed'),
                  ('feature', 'embed'), ('logit', 'classify')):
         if k in ns: return t
@@ -222,6 +226,16 @@ NORMS = {'01':       ((0., 0., 0.), (1., 1., 1.)),        # pixels in 0..1
 
 CHANNELS = (1, 3, 4)
 
+def _layout(s) -> str:
+    'Which axis is channels: from the sizes where they are concrete, from the axis names where not.'
+    d = [x if isinstance(x, int) and x > 0 else None for x in s]
+    if d[1] in CHANNELS and d[-1] not in CHANNELS: return 'nchw'
+    if d[-1] in CHANNELS and d[1] not in CHANNELS: return 'nhwc'
+    nm = [str(x).lower() for x in s]
+    if 'chan' in nm[1]: return 'nchw'
+    if 'chan' in nm[-1]: return 'nhwc'
+    return 'nchw' if all(x is None for x in d[1:]) else 'nhwc'   # every axis symbolic means an onnx export
+
 def prep_from_spec(shape,                 # the input tensor shape the model declares
                    dtype:str='float32',   # its dtype
                    norm='01',             # a NORMS name, or an explicit (mean, std)
@@ -239,7 +253,7 @@ def prep_from_spec(shape,                 # the input tensor shape the model dec
         return AudioPrep(samples=(n[-1] if n and n[-1] > 16 else None), dtype=dtype,
                          layout='nt' if len(s) == 2 else 't')
     d = [x if isinstance(x, int) and x > 0 else None for x in s]
-    lay = layout or ('nchw' if (d[1] in CHANNELS and d[-1] not in CHANNELS) else 'nhwc')
+    lay = layout or _layout(s)
     hw = (d[2], d[3]) if lay == 'nchw' else (d[1], d[2])
     dflt = 640 if task == 'detect' else 224
     size = tuple(size) if size else tuple(x or dflt for x in hw)

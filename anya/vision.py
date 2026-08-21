@@ -17,8 +17,8 @@ from fastcore.all import L
 __all__ = ['IMG_EXTS', 'AUD_EXTS', 'VID_EXTS', 'MEDIA_EXTS', 'IMAGENET', 'media_kind', 'load_image', 'img_size', 'load_audio',
            'video_frames', 'Prep', 'AudioPrep', 'letterbox', 'center_crop', 'fit', 'apply_prep', 'apply_audio_prep',
            'batch', 'softmax', 'sigmoid', 'is_prob', 'label_at', 'decode_classify', 'xywh2xyxy', 'nms', 'scale_boxes',
-           'decode_yolo', 'decode_ssd', 'decode_detect_auto', 'decode_segment', 'mask_image', 'l2norm', 'similarity',
-           'read_labels']
+           'decode_yolo', 'decode_ssd', 'decode_detect_auto', 'unfit_mask', 'decode_segment', 'mask_image', 'l2norm',
+           'similarity', 'read_labels']
 
 # %% ../nbs/01_vision.ipynb #94499641
 IMG_EXTS = set('.jpg .jpeg .png .bmp .gif .webp .tif .tiff .ppm .pgm'.split())
@@ -341,6 +341,20 @@ def decode_detect_auto(outs,            # every output array the model returned,
     return decode_yolo(outs[0], labels, conf=conf, iou=iou, meta=meta)
 
 # %% ../nbs/01_vision.ipynb #c7c8992c
+def unfit_mask(m,             # a label map on the model's own grid
+               meta:dict      # what `fit` recorded when the picture went in
+              ) -> np.ndarray:
+    "A label map back in the source picture's pixels, letterbox bars removed."
+    if not meta: return m
+    oh, ow = meta.get('orig', m.shape[:2]); sh, sw = meta.get('size', m.shape[:2])
+    px, py = meta.get('pad', (0, 0))                     # `fit` records padding as (left, top)
+    if px < 0 or py < 0: return m                        # a centre crop threw pixels away: keep the model's grid
+    y0, x0 = int(round(py*m.shape[0]/sh)), int(round(px*m.shape[1]/sw))
+    if y0 or x0: m = m[y0:m.shape[0]-y0 or None, x0:m.shape[1]-x0 or None]
+    if m.shape[:2] == (oh, ow): return m
+    from PIL import Image
+    return np.asarray(Image.fromarray(m.astype(np.int32), 'I').resize((ow, oh), Image.NEAREST), np.int32)
+
 def decode_segment(out,            # (1, C, H, W), (1, H, W, C) or (1, H, W) logits or a label map
                    labels=None,
                    meta:dict=None,
@@ -353,7 +367,9 @@ def decode_segment(out,            # (1, C, H, W), (1, H, W, C) or (1, H, W) log
         chw = a.shape[0] < a.shape[-1] and a.shape[0] < 512      # channels first if the first axis is small
         m = a.argmax(0 if chw else -1)
     else: m = a.astype(np.int64)
-    m = m.astype(np.int32)
+    # a segmenter's logits are usually coarser than its input, and the caller wants pixels it can
+    # index into the picture it passed in. `detect` already returns boxes in those coordinates
+    m = unfit_mask(m.astype(np.int32), meta)
     ids, cnt = np.unique(m, return_counts=True)
     tot = float(m.size)
     cls = [dict(label=label_at(labels, int(i)), index=int(i), frac=round(float(c/tot), 5))

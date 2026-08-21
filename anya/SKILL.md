@@ -28,10 +28,10 @@ under `preds` (classify), `objects` (detect), `mask`/`classes` (segment) or `vec
 - `m(x)`, `m.predict(one)`, `m.predict_all(folder, bs=None, on_error='skip', exclude=None)`, `m.predict_video(path, every=1.0, max_frames=None)`.
 - State: `m.task`, `m.runtime`, `m.labels`, `m.prep`, `m.spec`, `m.max_bs`, `m.modality`. `m.close()` frees the graph.
 - `Preds`: `.counts()`, `.above(score)`, `.by_label()`, `.ok`, `.failed`, `.labels`, `.records()`, `.save(path)`.
-- Tasks (`anya.tasks`): `classify(x, model, topk=5)`, `detect(x, model, conf, iou)`, `segment(x, model)`, `embed(x, model)`, `run(x, model, task=None)`, `sort_images(folder, model, dest=None, min_score=0.5, how='copy', dry_run=True)`, `find_similar(query, folder, model, n=10)`, `index_folder`, `summarize(preds)`, `bench(model)`.
+- Tasks (`anya.tasks`): `classify(x, model, topk=5)`, `detect(x, model, conf, iou)`, `segment(x, model)`, `embed(x, model)`, `run(x, model, task=None)`, `ask(x, {'find': 'car', 'task': 'segment'})`, `pick(pred, want)`, `save_masks(pred, dest, want=None)`, `sort_images(folder, model, dest=None, min_score=0.5, how='copy', dry_run=True)`, `find_similar(query, folder, model, n=10)`, `index_folder`, `summarize(preds)`, `bench(model)`.
 - Files (`anya.core`): `items(o, types='image', exclude=None)` expands a folder/glob/list; `arrange(preds, dest, how='copy', min_score=0, dry_run=True)` files them by label; `load_model` caches by arguments; `safe_name` turns a label into a directory name.
 - Hub (`anya.hub`): `find_models(query, task=, runtime=)`, `web_models(query)` (fossick fallback), `resolve_model(repo_id)`, `fetch(repo, file)`, `alias(name, repo, **kw)`, `aliases()`.
-- Tools (`anya.tools`): `TOOLS` for `Chat(tools=...)`, `SAFE` for the read-only subset, plus the `anya` CLI over the same functions.
+- Tools (`anya.tools`): `TOOLS` for `Chat(tools=...)`, `SAFE` for the read-only subset, `segment_masks` to write one PNG per class, plus the `anya` CLI over the same functions.
 
 ## Runtimes
 
@@ -58,6 +58,30 @@ from the signature. What a graph cannot say is the normalisation:
 
 Getting this wrong gives confident wrong answers rather than an error. If a model's top label looks
 random, try `norm='imagenet'` or `norm='signed'` before anything else.
+
+## Masks come back in the picture's pixels
+
+`segment` argmaxes the logits, then un-maps them. Letterbox bars come off and the label map is
+resized to the picture that went in, as detection boxes already were. A segformer with a
+128x128 logit grid asked about a 724x543 photo returns a 543x724 label map.
+
+Getting one out of the process takes `save_masks(pred, dest, want='car')`, or the `segment_masks`
+tool, which writes `<stem>.<label>.png` per class and returns the paths. The default destination is a
+`masks` folder beside the picture. A later folder run over that folder needs `exclude=`, or a
+destination somewhere else.
+
+`ask` is the same jobs behind one small dict, for an agent that is filling in a form rather than
+writing Python:
+
+```python
+from anya import Model
+from anya.tasks import ask
+ask('frontage.png', {'find': 'car', 'task': 'segment', 'model': 'Xenova/segformer-b0-finetuned-cityscapes-1024-1024'})
+# -> Pred with `classes` cut down to the car, `hit` a boolean mask for it, `mask` still the full label map
+```
+
+A coarse mask is normal. A semantic segmenter at 512x512 gives a blocky edge, and refining it onto
+the real one is the editing tool's job rather than anya's.
 
 ## Labels
 

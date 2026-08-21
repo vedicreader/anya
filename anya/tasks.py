@@ -11,12 +11,12 @@ from pathlib import Path
 import numpy as np
 from fastcore.all import AttrDict, L
 
-from .core import Model, Pred, Preds, arrange, items, load_model
+from .core import Model, Pred, Preds, arrange, items, load_model, safe_name
 from .vision import similarity
 
 # %% auto #0
-__all__ = ['as_model', 'run', 'classify', 'detect', 'segment', 'embed', 'sort_images', 'summarize', 'find_similar',
-           'index_folder', 'bench']
+__all__ = ['ASK', 'as_model', 'run', 'classify', 'detect', 'segment', 'embed', 'matches', 'pick', 'ask', 'save_masks',
+           'sort_images', 'summarize', 'find_similar', 'index_folder', 'bench']
 
 # %% ../nbs/06_tasks.ipynb #c28704e3
 def as_model(model, **kw) -> Model:
@@ -55,6 +55,53 @@ def segment(x, model, **kw):
 def embed(x, model, **kw):
     'A unit-length feature vector per item, for comparing pictures to each other.'
     return run(x, model, task=kw.pop('task', 'embed'), **kw)
+
+# %% ../nbs/06_tasks.ipynb #bc8836bb
+ASK = dict(find=None, task=None, model=None, conf=0.25, topk=5)     # every key an `ask` spec may carry
+
+def matches(label, want) -> bool:
+    'Does a class name answer to what was asked for? Either one may be the longer name.'
+    a, b = str(label).lower().strip(), str(want).lower().strip()
+    return bool(b) and (a == b or b in a or a in b)
+
+def pick(p:Pred, want:str) -> Pred:
+    "The parts of a `Pred` whose label answers to `want`, plus `hit`: one boolean mask for it."
+    q = Pred({k: v for k, v in p.items() if k not in ('preds', 'objects', 'classes')})
+    for k in ('preds', 'objects', 'classes'):
+        if p.get(k) is not None: q[k] = [o for o in p[k] if matches(o.get('label'), want)]
+    q['want'] = want
+    if p.get('mask') is not None:
+        m = np.asarray(p['mask']); ix = [c['index'] for c in q.get('classes') or []]
+        q['hit'] = np.isin(m, ix) if ix else np.zeros(m.shape, bool)
+    return q
+
+def ask(x,                     # a picture, a folder, or pixels
+        spec:dict=None,        # {'find': 'car', 'task': 'segment', 'model': ...}: the shape an agent fills in
+        model=None,            # used when the spec names none
+        **kw):
+    'Run the dict an agent filled in, and keep only what it said to find.'
+    s = {**ASK, **(spec or {})}
+    call = {k: s[k] for k in ('conf', 'topk') if s.get(k) is not None}
+    p = run(x, s.get('model') or model, task=s.get('task'), **{**call, **kw})
+    if not s.get('find'): return p
+    return Preds([pick(q, s['find']) for q in p]) if isinstance(p, Preds) else pick(p, s['find'])
+
+def save_masks(p:Pred,          # a `Pred` from `segment`
+               dest,            # folder to write into
+               want=None,       # only classes answering to this
+               stem:str=None    # file stem; the source picture's name by default
+              ) -> dict:
+    'Every class in a label map as its own PNG, keyed by label.'
+    from PIL import Image
+    m = np.asarray(p['mask']); d = Path(dest).expanduser(); d.mkdir(parents=True, exist_ok=True)
+    stem = stem or (Path(p['src']).stem if p.get('src') else 'mask')
+    out = {}
+    for c in p.get('classes') or []:
+        if want and not matches(c['label'], want): continue
+        f = d/f"{stem}.{safe_name(c['label'])}.png"
+        Image.fromarray((m == c['index']).astype(np.uint8)*255, 'L').save(f)
+        out[c['label']] = str(f)
+    return out
 
 # %% ../nbs/06_tasks.ipynb #02fe5c13
 def sort_images(folder,                  # folder of pictures to sort

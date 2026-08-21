@@ -13,11 +13,13 @@ import numpy as np
 from fastcore.all import AttrDict, L
 
 from .core import Preds, arrange, items, load_model
-from .tasks import as_model, bench, classify, detect, find_similar, segment, sort_images, summarize
+from .tasks import (as_model, bench, classify, detect, find_similar, save_masks, segment,
+                        sort_images, summarize)
 
 # %% auto #0
 __all__ = ['SAFE', 'WRITE', 'TOOLS', 'find_model', 'model_info', 'name_model', 'classify_image', 'detect_image', 'segment_image',
-           'classify_folder', 'sort_folder', 'similar_images', 'label_video', 'count_images', 'tool_names', 'main']
+           'segment_masks', 'classify_folder', 'sort_folder', 'similar_images', 'label_video', 'count_images',
+           'tool_names', 'main']
 
 # %% ../nbs/07_tools.ipynb #11a367f4
 def find_model(query:str,           # what the model should do, in words
@@ -82,6 +84,18 @@ def segment_image(path:str,         # the picture to look at
     return dict(src=str(path), model=p.get('model'), classes=p.get('classes', []),
                 shape=p.get('shape'), error=p.get('error'))
 
+def segment_masks(path:str,         # the picture to look at
+                  model:str,        # a segmentation model
+                  want:str=None,    # only classes answering to this name, such as 'car'
+                  dest:str=None     # where the PNGs go; a `masks` folder beside the picture by default
+                 ) -> dict:
+    'Write one PNG mask per class, and say where each went. How a mask reaches an editing tool.'
+    p = segment(path, model)
+    if p.get('error'): return dict(src=str(path), error=p['error'])
+    d = dest or str(Path(path).expanduser().parent/'masks')
+    return dict(src=str(path), model=p.get('model'), dest=d, shape=p.get('shape'),
+                classes=p.get('classes', []), masks=save_masks(p, d, want=want))
+
 # %% ../nbs/07_tools.ipynb #d2172bdb
 def classify_folder(folder:str,             # folder of pictures
                     model:str,              # a classifier
@@ -142,7 +156,7 @@ def count_images(folder:str,                # folder to look in
 # %% ../nbs/07_tools.ipynb #75f6b158
 SAFE = [find_model, model_info, count_images, classify_image, detect_image, segment_image,
         classify_folder, similar_images, label_video]
-WRITE = [sort_folder, name_model]
+WRITE = [sort_folder, name_model, segment_masks]
 TOOLS = SAFE + WRITE
 
 def tool_names() -> list:
