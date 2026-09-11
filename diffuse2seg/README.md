@@ -76,6 +76,30 @@ levels_panel(Image.open("wild/picsum_1080.jpg"), levels).save("panel.png")
 `seg.generate(...)` returns the pooled multi-granularity candidate set (the paper's up-to-1000 masks);
 `seg.levels(...)` returns one clean partition per granularity, which is what the panels show.
 
+## Comparison vs DINO (`compare_dino.py`)
+
+Swap the affinity source, keep the pipeline: `dino_affinity` builds a cosine-similarity graph over
+DINO patch tokens and runs the same `sparsify -> propagate -> merge -> NMS`, so any difference is the
+backbone.
+
+DINOv3 could not be loaded here: the official weights are license-gated on HF (401), and the one
+accessible mirror (`timm/vit_base_patch16_dinov3.lvd_1689m`) needs a `torchvision` whose compiled ops
+are ABI-incompatible with this container's `torch 2.14.0+cpu` (importing torchvision raises
+`operator torchvision::nms does not exist`). So the comparison uses **DINOv2** (same Meta
+self-supervised lineage, ungated, loads via `transformers` with no torchvision).
+
+At matched settings (same 64x64 grid, same cut height), SD2 self-attention (Diffuse2Seg) produces
+cleaner object-coherent masks; DINOv2 patch-cosine over-fragments: 213 vs 136 masks on the
+strawberries and 134 vs 66 on the coffee scene at the same height, and DINOv2's affinity is so
+uniformly high that even its coarsest cut cannot merge below ~189 clusters. This matches the paper's
+claim that diffusion self-attention already encodes object structure. Caveats: this is DINOv2 not v3,
+and raw cosine-affinity is not DINO's intended segmentation recipe (it is usually paired with a head
+or spectral method), so read it as a controlled backbone swap, not a ceiling on DINO.
+
+```bash
+python compare_dino.py wild/picsum_1080.jpg --h 2.06   # -> outputs/compare_dino.png
+```
+
 ## Files
 
 | file | role |
@@ -84,6 +108,7 @@ levels_panel(Image.open("wild/picsum_1080.jpg"), levels).save("panel.png")
 | `diffuse2seg/propagate.py` | top-k sparse affinity + p-Laplacian Gauss-Jacobi propagation |
 | `diffuse2seg/merge.py` | KL clustering, multi-granular partitioning, area-NMS |
 | `diffuse2seg/refine.py` | optional guided-filter / GrabCut edge-aware refinement |
+| `compare_dino.py` | DINOv2 affinity through the same pipeline, backbone comparison |
 | `diffuse2seg/generate.py` | end-to-end `Diffuse2Seg` |
 | `diffuse2seg/viz.py` | mask overlays and level panels |
 | `run.py` | CLI over image globs |
