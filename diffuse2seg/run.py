@@ -12,6 +12,7 @@ def main():
     ap.add_argument("--s", type=int, default=6, help="prompt grid spacing on latent")
     ap.add_argument("--k", type=int, default=48, help="top-k affinity neighbours per token")
     ap.add_argument("--a_min", type=int, default=300, help="min mask area in pixels")
+    ap.add_argument("--refine", choices=["guided", "grabcut"], help="edge-aware mask refinement")
     ap.add_argument("--out", default="outputs")
     a = ap.parse_args()
     paths = [p for g in a.images for p in glob.glob(g)]
@@ -19,7 +20,7 @@ def main():
     seg = Diffuse2Seg()
     for path in paths:
         t = time.time()
-        lv = seg.levels(path, size=a.size, t=a.t, s=a.s, k=a.k, a_min=a.a_min)
+        lv = seg.levels(path, size=a.size, t=a.t, s=a.s, k=a.k, a_min=a.a_min, refine=a.refine)
         name = os.path.splitext(os.path.basename(path))[0]
         levels_panel(Image.open(path), lv, tile=a.size // 2 + 96).save(
             os.path.join(a.out, name + "_levels.png"))

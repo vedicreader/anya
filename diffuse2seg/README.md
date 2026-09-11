@@ -31,13 +31,31 @@ identical SD2 architecture.
    argmax each level into a partition, split into connected components, then area-descending NMS to a
    complementary mask set. Small heights isolate parts, large heights isolate whole objects.
 
+## Edge-aware refinement (optional, `refine.py`)
+
+The masks live on the latent grid, so their boundaries are soft. `refine=` snaps each mask to image
+edges, filling the slot the paper gives CascadePSP, training-free. `guided` runs an edge-preserving
+guided filter (fast, safe); `grabcut` runs GrabCut on each mask's bbox crop (crisper instance
+boundaries). Refinement is parallel across masks (`cv2` releases the GIL), ~2s for ~120 masks.
+
+```python
+seg.levels("img.jpg", refine="grabcut")     # or refine="guided"
+```
+
+## High resolution
+
+The self-attention grab is query-tiled (`attn._Grab`), so `N=19600` at the paper's 1120px fits in
+~12GB RAM on CPU without materializing the full `heads x N x N` score tensor. `--size 1120` runs the
+paper's productive resolution; 512-768 is the fast CPU default.
+
 ## Departures from the paper
 
-- Runs at `size=512` (latent 64x64) instead of `1120` for CPU feasibility. Everything is a flag.
+- Default `size=512` (latent 64x64) for speed; `--size 1120` reaches the paper's resolution.
 - `p`-Laplacian sharpening is done by a top-`k` sparse affinity (`k=48`) rather than the paper's
   `tau_att` threshold, whose formula the paper does not give. Same effect: suppress weak edges, keep
   the graph connected.
-- No CascadePSP refinement (the paper marks it optional) and no Step-3 detector training.
+- Refinement is guided-filter/GrabCut instead of the learned CascadePSP. No Step-3 detector training
+  (needs GPUs); the overlays are the raw generator output, optionally refined.
 
 ## Run
 
@@ -65,6 +83,7 @@ levels_panel(Image.open("wild/picsum_1080.jpg"), levels).save("panel.png")
 | `diffuse2seg/attn.py` | SD2 self-attention extraction via single-step denoising |
 | `diffuse2seg/propagate.py` | top-k sparse affinity + p-Laplacian Gauss-Jacobi propagation |
 | `diffuse2seg/merge.py` | KL clustering, multi-granular partitioning, area-NMS |
+| `diffuse2seg/refine.py` | optional guided-filter / GrabCut edge-aware refinement |
 | `diffuse2seg/generate.py` | end-to-end `Diffuse2Seg` |
 | `diffuse2seg/viz.py` | mask overlays and level panels |
 | `run.py` | CLI over image globs |

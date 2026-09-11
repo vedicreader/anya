@@ -37,6 +37,17 @@ def test_area_nms_drops_duplicates():
     assert len(kept) == 2                            # the duplicate is removed, the shifted one kept
 
 
+def test_guided_refine_snaps_to_a_colour_edge():
+    "A blurry mask over a half-red/half-black image tightens toward the colour boundary."
+    import pytest
+    cv2 = pytest.importorskip("cv2")
+    from diffuse2seg.refine import guided_refine
+    rgb = np.zeros((80, 80, 3), np.uint8); rgb[:, :40] = (200, 30, 30)   # red left, black right
+    mask = np.zeros((80, 80), bool); mask[:, :52] = True                 # overshoots into black by 12px
+    ref = guided_refine(rgb, mask, radius=12, eps=1e-3)
+    assert ref[:, :40].mean() > 0.9 and ref[:, 60:].mean() < 0.1          # pulled back to the edge
+
+
 if __name__ == "__main__":
     for k, v in list(globals().items()):
         if k.startswith("test_"): v(); print("ok", k)

@@ -23,18 +23,22 @@ def _to_latent(pipe, img, size, device, dtype):
 
 
 class _Grab:
-    "Attention processor that caches softmax(QK^T) for the self-attention it wraps."
-    def __init__(self, store, key): self.store, self.key = store, key
+    "Attention processor that caches the head-mean softmax(QK^T), query-tiled to bound memory."
+    def __init__(self, store, key, block=4096): self.store, self.key, self.block = store, key, block
     def __call__(self, attn, hidden, encoder_hidden_states=None, attention_mask=None, **kw):
-        h = hidden
-        q = attn.to_q(h); k = attn.to_k(h); v = attn.to_v(h)
-        q, k, v = (attn.head_to_batch_dim(t) for t in (q, k, v))
-        p = attn.get_attention_scores(q, k, attention_mask)          # (B*heads, N, N)
-        nh = attn.heads; N = p.shape[1]
-        self.store[self.key] = p.view(-1, nh, N, N).mean(1).mean(0)  # aggregate heads+batch -> (N,N)
-        out = torch.bmm(p, v)
-        out = attn.batch_to_head_dim(out)
-        out = attn.to_out[0](out); out = attn.to_out[1](out)
+        q = attn.head_to_batch_dim(attn.to_q(hidden))               # (B*heads, N, d)
+        k = attn.head_to_batch_dim(attn.to_k(hidden))
+        v = attn.head_to_batch_dim(attn.to_v(hidden))
+        BH, N, _ = q.shape; nh = attn.heads
+        out = torch.empty_like(q)
+        A = torch.zeros(N, N, dtype=torch.float32)                  # accumulated head+batch mean
+        for i in range(0, N, self.block):                          # tile over query rows
+            j = min(i + self.block, N)
+            p = (q[:, i:j] @ k.transpose(-1, -2) * attn.scale).softmax(-1)   # (BH, bs, N)
+            out[:, i:j] = p @ v
+            A[i:j] = p.view(-1, nh, j - i, N).mean(1).mean(0).float()
+        self.store[self.key] = A
+        out = attn.to_out[1](attn.to_out[0](attn.batch_to_head_dim(out)))
         return out
 
 

@@ -13,25 +13,32 @@ class Diffuse2Seg:
 
     def generate(self, img, size=512, t=100, w=(0.85, 0.15), k=48, s=6, p=1.6, lam=1e-5,
                  tau_prop=1e-4, max_iter=200, L=6, hmin=0.186, hmax=2.99, a_min=100,
-                 tau_iou=0.9, n_max=1000, out_size=None):
+                 tau_iou=0.9, n_max=1000, out_size=None, refine=None):
         "Return the pooled multi-granularity instance masks (paper's candidate set)."
+        if isinstance(img, str): img = Image.open(img)
         H = W = out_size or size
         f, (Hf, Wf) = self._soft_maps(img, size, t, w, k, s, p, lam, tau_prop, max_iter)
         pool = merge_masks(f, Hf, Wf, H, W, L, hmin, hmax, a_min)
-        return area_nms(pool, tau_iou, n_max)
+        return self._refine(img, area_nms(pool, tau_iou, n_max), refine)
 
     def levels(self, img, size=512, t=100, w=(0.85, 0.15), k=48, s=6, p=1.6, lam=1e-5,
                tau_prop=1e-4, max_iter=200, L=6, hmin=0.186, hmax=2.99, a_min=200,
-               tau_iou=0.9, out_size=None):
+               tau_iou=0.9, out_size=None, refine=None):
         "Return {h: masks} at each granularity, NMS-deduplicated within each level."
+        if isinstance(img, str): img = Image.open(img)
         H = W = out_size or size
         f, (Hf, Wf) = self._soft_maps(img, size, t, w, k, s, p, lam, tau_prop, max_iter)
         lv = merge_levels(f, Hf, Wf, H, W, L, hmin, hmax, a_min)
-        return {h: area_nms(m, tau_iou) for h, m in lv.items()}
+        return {h: self._refine(img, area_nms(m, tau_iou), refine) for h, m in lv.items()}
+
+    def _refine(self, img, masks, refine):
+        "Optionally snap masks to image edges (the paper's CascadePSP slot)."
+        if not refine: return masks
+        from .refine import refine_masks
+        return refine_masks(img, masks, method=refine)
 
     def _soft_maps(self, img, size, t, w, k, s, p, lam, tau_prop, max_iter):
         "Extract affinity, sparsify, and p-Laplacian-propagate the grid prompts."
-        if isinstance(img, str): img = Image.open(img)
         A, (Hf, Wf) = extract_affinity(self.pipe, img, size, t, w)
         f = propagate(sparsify(A, k), grid_prompts(Hf, Wf, s), p, lam, tau_prop, max_iter)
         return f, (Hf, Wf)
