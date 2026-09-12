@@ -42,6 +42,19 @@ boundaries). Refinement is parallel across masks (`cv2` releases the GIL), ~2s f
 seg.levels("img.jpg", refine="grabcut")     # or refine="guided"
 ```
 
+## Combining with rembg (foreground gating + contour)
+
+`rembg_seg.py` pairs Diffuse2Seg with [rembg](https://github.com/danielgatis/rembg)'s salient-object
+matte. rembg gives one crisp foreground alpha (U^2-Net), Diffuse2Seg gives the parts inside. Two uses:
+`gate_masks` keeps only the D2S masks that sit inside the foreground (drops background fragments), and
+`alpha_contour`/`snap_to_alpha` supply a matte-quality outer contour for the subject. On the husky,
+foreground gating cuts 40 scene masks to 13 subject-part masks. Best on a clear subject; on a
+frame-filling scene the foreground is ~everything, so gating is a no-op.
+
+```bash
+python rembg_combine.py wild/picsum_659.jpg --h 1.72   # writes outputs/rembg_combine.png
+```
+
 ## High resolution
 
 The self-attention grab is query-tiled (`attn._Grab`), so `N=19600` at the paper's 1120px fits in
@@ -108,6 +121,7 @@ python compare_dino.py wild/picsum_1080.jpg --h 2.06   # -> outputs/compare_dino
 | `diffuse2seg/propagate.py` | top-k sparse affinity + p-Laplacian Gauss-Jacobi propagation |
 | `diffuse2seg/merge.py` | KL clustering, multi-granular partitioning, area-NMS |
 | `diffuse2seg/refine.py` | optional guided-filter / GrabCut edge-aware refinement |
+| `diffuse2seg/rembg_seg.py` | rembg foreground gating + matte contour helpers |
 | `compare_dino.py` | DINOv2 affinity through the same pipeline, backbone comparison |
 | `diffuse2seg/generate.py` | end-to-end `Diffuse2Seg` |
 | `diffuse2seg/viz.py` | mask overlays and level panels |

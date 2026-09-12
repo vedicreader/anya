@@ -48,6 +48,16 @@ def test_guided_refine_snaps_to_a_colour_edge():
     assert ref[:, :40].mean() > 0.9 and ref[:, 60:].mean() < 0.1          # pulled back to the edge
 
 
+def test_rembg_gate_drops_background_masks():
+    "Foreground gating keeps masks inside the alpha and drops those outside it."
+    from diffuse2seg.rembg_seg import gate_masks
+    alpha = np.zeros((64, 64), np.float32); alpha[:, :32] = 1.0     # foreground = left half
+    inside = np.zeros((64, 64), bool); inside[10:30, 5:25] = True
+    outside = np.zeros((64, 64), bool); outside[10:30, 40:60] = True
+    kept = gate_masks([inside, outside], alpha)
+    assert len(kept) == 1 and kept[0][15, 15]                       # only the left-half mask survives
+
+
 if __name__ == "__main__":
     for k, v in list(globals().items()):
         if k.startswith("test_"): v(); print("ok", k)
